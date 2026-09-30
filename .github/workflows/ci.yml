@@ -1,0 +1,44 @@
+# Continuous verification for Dev Tools Hub.
+# - Actions are pinned to full commit SHAs (a tag can be moved; a SHA can't —
+#   the tj-actions and trivy-action incidents are why).
+# - Token is read-only; credentials are not persisted into the workspace.
+# - The secret scan runs FIRST, over the full git history, before any
+#   dependency is installed.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Secret scan of full git history (gitleaks 8.28.0, checksum-verified)
+        run: |
+          curl -sSfL -o gitleaks.tgz https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz
+          echo "a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+          ./gitleaks git . --config .gitleaks.toml --redact --no-banner
+          rm -f gitleaks gitleaks.tgz
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npx --yes tsx@4 scripts/verify_lib.ts
+      - run: npx --yes tsx@4 scripts/verify_debugkit.ts
+      - run: npm run build

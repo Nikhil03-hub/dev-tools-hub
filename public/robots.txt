@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /waitlist.html
+Disallow: /waitlist-thanks.html
+
+Sitemap: https://json-workbench.netlify.app/sitemap.xml

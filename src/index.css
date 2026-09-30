@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  ::selection {
+    background-color: theme("colors.accent.muted");
+    color: theme("colors.ink.DEFAULT");
+  }
+  /* Minimal, deliberate scrollbars — dark-first, not the browser default */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: #2a2a34;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #38384a;
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  .kbd {
+    @apply inline-flex items-center justify-center rounded border border-border bg-raised px-1.5 py-0.5 text-[11px] font-mono text-ink-dim shadow-none;
+  }
+}

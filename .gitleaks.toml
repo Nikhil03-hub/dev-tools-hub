@@ -1,0 +1,16 @@
+# gitleaks configuration for Dev Tools Hub.
+# The two files allow-listed below contain INTENTIONALLY FAKE secrets used as
+# test fixtures for the Debug Report redaction engine (they prove that the
+# engine removes them). None of them is a real credential. Every other file
+# is scanned with gitleaks' full default rule set.
+title = "Dev Tools Hub"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake-secret test fixtures for the redaction engine"
+paths = [
+  '''(^|/)scripts/verify_debugkit\.ts$''',
+  '''(^|/)src/lib/debugkit/samples\.ts$''',
+]

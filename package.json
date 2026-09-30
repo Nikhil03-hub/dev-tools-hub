@@ -1,0 +1,41 @@
+{
+  "name": "json-workbench",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dev Tools Hub — privacy-first developer tools (JSON, JWT, Regex, Timestamp, Base64/URL/UUID/Hash) that run entirely in the browser.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/postbuild-security.mjs",
+    "preview": "vite preview",
+    "verify:lib": "npx tsx scripts/verify_lib.ts",
+    "verify:debugkit": "npx tsx scripts/verify_debugkit.ts",
+    "test:e2e": "node test/e2e.cjs"
+  },
+  "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.2",
+    "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/language": "^6.10.2",
+    "@codemirror/lint": "^6.8.4",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "@lezer/highlight": "^1.2.1",
+    "@uiw/react-codemirror": "^4.23.6",
+    "ajv": "^8.17.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.451.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8",
+    "vite-plugin-singlefile": "^2.0.3"
+  }
+}

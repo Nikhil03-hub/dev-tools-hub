@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; base-uri 'none'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="data:," />
+    <title>Waitlist — Dev Tools Hub</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #0a0a0d; color: #e8e8ec; font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      main { max-width: 560px; margin: 0 auto; padding: 48px 16px; }
+      h1 { font-size: 22px; margin: 0 0 8px; }
+      p { color: #9a9aa8; margin: 0 0 16px; }
+      fieldset { border: 1px solid #25252e; border-radius: 12px; padding: 12px 14px; margin: 0 0 16px; }
+      legend { padding: 0 6px; color: #e8e8ec; font-weight: 600; }
+      label { display: block; margin: 6px 0; }
+      input[type="email"], textarea { width: 100%; box-sizing: border-box; background: #111116; color: #e8e8ec; border: 1px solid #25252e; border-radius: 10px; padding: 10px 12px; font: inherit; }
+      input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid #7c6cf6; outline-offset: 2px; }
+      button { background: #7c6cf6; color: #fff; border: 0; border-radius: 10px; padding: 11px 18px; font: inherit; font-weight: 600; cursor: pointer; min-height: 44px; }
+      .hp { position: absolute; left: -10000px; }
+      small { color: #5c5c6a; display: block; margin-top: 12px; }
+      a { color: #8f81f8; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Not built yet: tell us if you want it</h1>
+      <p>We're checking whether developers want these before building them. Leave your email and we'll write once, when (and only if) it ships.</p>
+      <form name="waitlist" method="POST" action="/waitlist-thanks.html" data-netlify="true" netlify-honeypot="company">
+        <input type="hidden" name="form-name" value="waitlist" />
+        <p class="hp"><label>Leave this empty: <input name="company" tabindex="-1" autocomplete="off" /></label></p>
+        <fieldset>
+          <legend>I'm interested in</legend>
+          <label><input type="checkbox" name="interest" value="cli" /> Debug Report as a CLI / GitHub Action (terminal &amp; CI)</label>
+          <label><input type="checkbox" name="interest" value="team-rules" /> Custom redaction rules shared by my team</label>
+          <label><input type="checkbox" name="interest" value="support-intake" /> A page my customers use to send us sanitized HAR/log files</label>
+        </fieldset>
+        <label for="email">Email</label>
+        <input id="email" type="email" name="email" required maxlength="254" autocomplete="email" />
+        <label for="usecase" style="margin-top:12px">What would you use it for? (optional)</label>
+        <textarea id="usecase" name="usecase" rows="3" maxlength="500"></textarea>
+        <p style="margin-top:16px"><button type="submit">Join the waitlist</button></p>
+        <small>We only use your email to tell you about this. No sharing, no newsletter. Submissions are stored by our host (Netlify Forms). <a href="/">Back to Dev Tools Hub</a></small>
+      </form>
+    </main>
+  </body>
+</html>
