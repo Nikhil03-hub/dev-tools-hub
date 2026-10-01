@@ -1,9 +1,10 @@
 # Dev Tools Hub
 
-Dev Tools Hub — privacy-first developer tools (JSON, JWT, Regex, Timestamp, Base64/URL/UUID/Hash) that run entirely in the browser.
+Dev Tools Hub — privacy-first developer tools that run entirely in the browser. New: **Debug Report** — paste a failing request, HAR file or log and get the likely cause plus a redacted, share-ready report.
 
 ## Tools
 
+- **Debug Report** — paste a cURL command, raw HTTP request/response, HAR file, JWT, .env or log. It explains likely causes (expired or not-yet-valid JWTs, 401/403, CORS preflight problems, cookie issues, credentials in URLs, root exceptions in logs) with evidence, redacts secrets with consistent placeholders, and formats a report for an AI chat, a GitHub issue or a support ticket. Try it: https://json-workbench.netlify.app/#debug
 - **JSON Workbench** — format, validate, tree view, diff, schema check and TypeScript generation.
 - **JWT Decoder** — decode and inspect JSON Web Tokens locally.
 - **Regex Tester** — test regular expressions with live match highlighting.
