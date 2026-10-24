@@ -1263,7 +1263,11 @@ async function main() {
   await page.waitForTimeout(100);
   const sanClip = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
   const sanPre = await page.getByTestId("debug-sanitized-output").evaluate((el) => el.textContent);
-  check("debug_copy_sanitized_matches", sanClip === sanPre && sanClip.length > 0, String(sanClip).slice(0, 80));
+  // Windows: Chromium normalises \n to \r\n when writing to the system
+  // clipboard, so this compares clipboard *content*, not the platform's
+  // line-ending convention. A real content difference still fails here.
+  const normNewlines = (s) => String(s == null ? "" : s).replace(/\r\n/g, "\n");
+  check("debug_copy_sanitized_matches", normNewlines(sanClip) === normNewlines(sanPre) && sanClip.length > 0, String(sanClip).slice(0, 80));
   const dlTxt = page.waitForEvent("download", { timeout: 5000 });
   await page.getByTestId("btn-debug-download-sanitized").click();
   check("debug_download_sanitized_filename_txt", (await dlTxt).suggestedFilename() === "sanitized.txt");
