@@ -1715,6 +1715,33 @@ async function main() {
     await hp.close();
   }
 
+  // ---- palette v2 (T-107) ----
+  {
+    const { p: pp, errors: pe } = await newCheckedPage(context);
+    await pp.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
+
+    await pp.keyboard.press("/");
+    await pp.waitForTimeout(200);
+    const slashOpen = await pp.getByTestId("command-palette").isVisible().catch(() => false);
+    check("palette_slash_opens", slashOpen, String(slashOpen));
+
+    await pp.getByRole("combobox").fill("jwtdec");
+    await pp.waitForTimeout(150);
+    const firstOption = await pp.getByRole("option").first().innerText();
+    check("palette_fuzzy_yaml_like", /JWT Decoder/i.test(firstOption), firstOption.slice(0, 60));
+    await pp.keyboard.press("Escape");
+
+    // Recents: visit two tools, reopen the palette, expect the Recent group.
+    await pp.goto(BASE + "jwt-decoder/", { waitUntil: "networkidle" });
+    await pp.goto(BASE + "regex-tester/", { waitUntil: "networkidle" });
+    await pp.getByTestId("btn-open-palette").click();
+    await pp.waitForTimeout(250);
+    const paletteText = await pp.getByTestId("command-palette").innerText();
+    check("palette_recent_section", /recent/i.test(paletteText), paletteText.slice(0, 120));
+    check("palette_no_console_errors", pe.length === 0, JSON.stringify(pe));
+    await pp.close();
+  }
+
   await browser.close();
 
   console.log("\n===== RESULTS =====");

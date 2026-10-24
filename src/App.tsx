@@ -83,6 +83,11 @@ export default function App() {
         setPaletteOpen((v) => !v);
         return;
       }
+      if (e.key === "/" && !meta && !e.altKey && !isEditableTarget(e.target)) {
+        e.preventDefault();
+        setPaletteOpen(true);
+        return;
+      }
       if (e.key === "[" && !meta && !e.altKey && !isEditableTarget(e.target)) {
         e.preventDefault();
         toggleCollapsed();
@@ -106,17 +111,43 @@ export default function App() {
   }
 
   const activeHandle = hostRef.current?.getActiveHandle() ?? null;
-  const switchCommands: Command[] = useMemo(
+  const remember = useCallback((slug: string) => navigate(toolPath(slug)), []);
+  const recentCommands: Command[] = useMemo(
+    () =>
+      recent
+        .filter((id) => id !== activeId)
+        .map((id) => getTool(id))
+        .filter((t) => t !== undefined)
+        .map((t) => ({ id: `recent-${t.id}`, label: `Switch to ${t.navTitle}`, group: "Recent", action: () => remember(t.slug) })),
+    [recent, activeId, remember]
+  );
+  const toolCommands: Command[] = useMemo(
     () =>
       TOOLS.filter((t) => t.id !== activeId).map((t) => ({
         id: `switch-${t.id}`,
         label: `Switch to ${t.navTitle}`,
-        group: "Dev Tools Hub",
-        action: () => navigate(toolPath(t.slug)),
+        group: "Tools",
+        action: () => remember(t.slug),
       })),
-    [activeId]
+    [activeId, remember]
   );
-  const commands: Command[] = [...switchCommands, ...(activeHandle?.getCommands() ?? [])];
+  const generalCommands: Command[] = useMemo(
+    () => [
+      { id: "general-home", label: "Go to home", group: "General", action: () => navigate("/") },
+      // Reuses the single theme control so its icon and the stored preference
+      // cannot drift apart.
+      {
+        id: "general-theme",
+        label: "Toggle theme",
+        group: "General",
+        action: () => document.querySelector<HTMLButtonElement>('[data-testid="btn-theme"]')?.click(),
+      },
+      { id: "general-sidebar", label: "Collapse sidebar", group: "General", action: toggleCollapsed },
+      { id: "general-privacy", label: "Privacy", group: "General", action: () => navigate("/privacy/") },
+    ],
+    [toggleCollapsed]
+  );
+  const commands: Command[] = [...recentCommands, ...toolCommands, ...(activeHandle?.getCommands() ?? []), ...generalCommands];
 
   const renderSidebar = (opts: { collapsed: boolean; onToggleCollapsed?: () => void }) => (
     <Sidebar
@@ -174,7 +205,7 @@ export default function App() {
         <MobileDrawer onClose={() => setDrawerOpen(false)}>{renderSidebar({ collapsed: false })}</MobileDrawer>
       )}
 
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} recentIds={recent} />
       <ToastHost />
     </div>
   );
