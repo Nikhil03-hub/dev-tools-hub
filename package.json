@@ -10,10 +10,11 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:boundaries": "node scripts/check-boundaries.mjs",
+    "check:registry": "tsx scripts/check-registry.ts",
     "test:unit": "vitest run",
     "verify:lib": "tsx scripts/verify_lib.ts",
     "verify:debugkit": "tsx scripts/verify_debugkit.ts",
-    "check": "npm run typecheck && npm run check:boundaries && npm run test:unit && npm run verify:lib && npm run verify:debugkit && npm run build",
+    "check": "npm run typecheck && npm run check:boundaries && npm run check:registry && npm run test:unit && npm run verify:lib && npm run verify:debugkit && npm run build",
     "test:e2e": "node scripts/run-e2e.mjs"
   },
   "dependencies": {

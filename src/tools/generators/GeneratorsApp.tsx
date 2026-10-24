@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { Binary, Fingerprint, Hash as HashIcon, Link as LinkIcon } from "lucide-react";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
+import type { ToolProps } from "../../registry/types";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
@@ -31,7 +32,7 @@ const SUB_MODES: { id: SubMode; label: string; icon: typeof Binary }[] = [
 // in this hub — all four stay mounted at once (CSS-hidden, not unmounted),
 // so switching between Base64/URL/UUID/Hash never discards what you typed
 // into another one.
-const GeneratorsApp = forwardRef<ToolHandle, { isActive: boolean }>(function GeneratorsApp(_props, ref) {
+const GeneratorsApp = forwardRef<ToolHandle, ToolProps>(function GeneratorsApp(_props, ref) {
   const [subMode, setSubMode] = useState<SubMode>("base64");
 
   // ---- Base64 ----

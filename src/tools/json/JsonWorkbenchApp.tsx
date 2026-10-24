@@ -9,6 +9,7 @@ import SchemaView from "./components/SchemaView";
 import TsView from "./components/TsView";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
+import type { ToolProps } from "../../registry/types";
 import { parseJsonWithDiagnostics } from "./lib/jsonParse";
 import { formatJson, minifyJson, byteSize, countNodes, maxDepth } from "./lib/format";
 import { replaceEditorContent } from "../../lib/cmUtil";
@@ -33,7 +34,7 @@ const PLACEHOLDER = 'Paste JSON here, or drop a .json file…\n\n{\n  "hello": "
 // since those are now hub-level singletons shared with every tool. It
 // still owns every JSON-specific action and reports its command list up
 // through `ref` (see ToolHandle) instead of rendering its own palette.
-const JsonWorkbenchApp = forwardRef<ToolHandle, { isActive: boolean }>(function JsonWorkbenchApp(
+const JsonWorkbenchApp = forwardRef<ToolHandle, ToolProps>(function JsonWorkbenchApp(
   { isActive },
   ref
 ) {

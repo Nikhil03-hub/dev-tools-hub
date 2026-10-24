@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, 
 import { Copy, Download, FileSearch, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
+import type { ToolProps } from "../../registry/types";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
@@ -41,7 +42,7 @@ const SAMPLE_COMMAND_LABEL: Record<DebugSample["id"], string> = {
   "java-log": "Load sample: service log",
 };
 
-const DebugReportApp = forwardRef<ToolHandle, { isActive: boolean }>(function DebugReportApp(props, ref) {
+const DebugReportApp = forwardRef<ToolHandle, ToolProps>(function DebugReportApp(props, ref) {
   const [input, setInput] = useState("");
   const [emails, setEmails] = useState(true);
   const [ips, setIps] = useState(true);

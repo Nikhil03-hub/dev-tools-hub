@@ -1455,7 +1455,11 @@ async function main() {
 
   // ---- Final console/network check ----
   check("no_console_errors", consoleErrors.length === 0, JSON.stringify(consoleErrors));
-  check("zero_network_after_load", requestsAfterLoad.length === 0, JSON.stringify(requestsAfterLoad));
+  // Lazy chunks are real same-origin asset requests after first paint. What must
+  // stay at zero is any request that is not our own code: no API, no CDN, no font.
+  const offOriginOrNonAsset = requestsAfterLoad.filter((r) => !r.url.startsWith(BASE + "assets/"));
+  check("zero_network_after_load", offOriginOrNonAsset.length === 0, JSON.stringify(offOriginOrNonAsset));
+  check("only_same_origin_assets_after_load", requestsAfterLoad.every((r) => r.url.startsWith(BASE + "assets/") && ["script", "stylesheet", "font", "image"].includes(r.resourceType)), JSON.stringify(requestsAfterLoad));
 
   // ---- WP1: CSP + headers + public files ----
   const cspContent = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content").catch(() => null);

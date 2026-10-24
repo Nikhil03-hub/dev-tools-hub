@@ -2,23 +2,39 @@ import { useState } from "react";
 import { Braces, Command, Monitor, Moon, Sun } from "lucide-react";
 import PrivacyBadge from "./PrivacyBadge";
 import { getThemePref, nextThemePref, setThemePref, type ThemePref } from "../shell/theme";
-
-export interface HubTool {
-  id: string;
-  label: string;
-  shortLabel: string;
-}
+import { TOOLS } from "../registry/tools";
 
 const THEME_ICON: Record<ThemePref, typeof Monitor> = { system: Monitor, light: Sun, dark: Moon };
 
+// This top-tab header is temporary: T-105 replaces it with the sidebar shell.
+// Until then it keeps the exact V1 ordering and labels so V1 behaviour and its
+// e2e checks survive the move to the registry unchanged.
+const TAB_ORDER = ["json-workbench", "jwt-decoder", "regex-tester", "timestamp-converter", "encode-generate", "debug-report"];
+const TAB_LABEL: Record<string, string> = {
+  "json-workbench": "JSON Workbench",
+  "jwt-decoder": "JWT Decoder",
+  "regex-tester": "Regex Tester",
+  "timestamp-converter": "Timestamp Converter",
+  "encode-generate": "Generators & Converters",
+  "debug-report": "Debug Report",
+};
+const TAB_SHORT: Record<string, string> = {
+  "json-workbench": "JSON",
+  "jwt-decoder": "JWT",
+  "regex-tester": "Regex",
+  "timestamp-converter": "Timestamp",
+  "encode-generate": "Generators",
+  "debug-report": "Debug",
+};
+
+const TABS = TAB_ORDER.map((id) => TOOLS.find((t) => t.id === id)).filter((t) => t !== undefined);
+
 export default function Header({
-  tools,
-  activeTool,
+  activeToolId,
   onSelectTool,
   onOpenPalette,
 }: {
-  tools: HubTool[];
-  activeTool: string;
+  activeToolId: string;
   onSelectTool: (id: string) => void;
   onOpenPalette: () => void;
 }) {
@@ -48,21 +64,21 @@ export default function Header({
         aria-label="Tools"
         className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border-subtle bg-raised/60 p-1"
       >
-        {tools.map((tool) => {
-          const active = tool.id === activeTool;
+        {TABS.map((tool) => {
+          const active = tool.id === activeToolId;
           return (
             <button
               key={tool.id}
               type="button"
-              data-testid={`tool-tab-${tool.id}`}
+              data-testid={`tool-tab-${tool.legacyHash ?? tool.id}`}
               onClick={() => onSelectTool(tool.id)}
               aria-current={active ? "page" : undefined}
               className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 active ? "bg-accent/15 text-accent" : "text-ink-dim hover:text-ink"
               }`}
             >
-              <span className="hidden sm:inline">{tool.label}</span>
-              <span className="sm:hidden">{tool.shortLabel}</span>
+              <span className="hidden sm:inline">{TAB_LABEL[tool.id] ?? tool.navTitle}</span>
+              <span className="sm:hidden">{TAB_SHORT[tool.id] ?? tool.navTitle}</span>
             </button>
           );
         })}

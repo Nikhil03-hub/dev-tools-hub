@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, useState, type DragEvent } fro
 import { AlertCircle, CheckCircle2, Search, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
+import type { ToolProps } from "../../registry/types";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { applyReplacement, buildSample, DEFAULT_FLAGS, runRegex, type UiFlags } from "../../lib/regex";
@@ -27,7 +28,7 @@ const TABS: { id: OutputTab; label: string }[] = [
 // regex tester shares; it isn't addressed here since fixing it properly
 // needs a Web Worker with a hard timeout, which is real added
 // architecture, not something to bolt on silently for V1.
-const RegexTesterApp = forwardRef<ToolHandle, { isActive: boolean }>(function RegexTesterApp(_props, ref) {
+const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp(_props, ref) {
   const [pattern, setPattern] = useState("");
   const [flags, setFlags] = useState<UiFlags>(DEFAULT_FLAGS);
   const [text, setText] = useState("");

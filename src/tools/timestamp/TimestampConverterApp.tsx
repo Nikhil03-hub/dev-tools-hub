@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "reac
 import { AlertCircle, CheckCircle2, Clock, Copy, Download, Search, Trash2 } from "lucide-react";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
+import type { ToolProps } from "../../registry/types";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import {
@@ -37,7 +38,7 @@ function readNowAsEpochSeconds(): number {
   return Math.floor(PRESETS.find((p) => p.id === "now")!.getInstant().ms / 1000);
 }
 
-const TimestampConverterApp = forwardRef<ToolHandle, { isActive: boolean }>(function TimestampConverterApp(_props, ref) {
+const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function TimestampConverterApp(_props, ref) {
   const [mode, setMode] = useState<Mode>("fromEpoch");
   const [epochInput, setEpochInput] = useState("");
   const [epochUnitMode, setEpochUnitMode] = useState<EpochUnitMode>("auto");

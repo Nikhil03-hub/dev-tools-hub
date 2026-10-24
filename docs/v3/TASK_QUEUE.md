@@ -11,7 +11,7 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 |---|---|---|---|---|---|
 | 1 | T-101 | Tooling and gates (no behaviour change) | tasks/P1_foundation.md | — | DONE |
 | 2 | T-102 | Design tokens, light/dark/system theme | tasks/P1_foundation.md | T-101 | DONE |
-| 3 | T-103 | Tool registry + lazy loading + keep-alive | tasks/P1_foundation.md | T-102 | READY |
+| 3 | T-103 | Tool registry + lazy loading + keep-alive | tasks/P1_foundation.md | T-102 | DONE |
 | 4 | T-104 | Multi-file build, path URLs, static SEO pages, V3 CSP | tasks/P1_foundation.md | T-103 | READY |
 | 5 | T-105 | App shell: sidebar, top bar, mobile drawer | tasks/P1_foundation.md | T-104 | READY |
 | 6 | T-106 | Home page with "Paste anything" detection | tasks/P1_foundation.md | T-105 | READY |

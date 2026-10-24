@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, Copy, Download, KeyRound, ShieldAlert, Spark
 import JsonEditor from "../../components/JsonEditor";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
+import type { ToolProps } from "../../registry/types";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { decodeJwt, buildSampleJwt, type JwtClaimInfo } from "../../lib/jwt";
@@ -22,7 +23,7 @@ const CLAIM_TONE_CLASS: Record<JwtClaimInfo["tone"], string> = {
   neutral: "border-border bg-raised text-ink-dim",
 };
 
-const JwtDecoderApp = forwardRef<ToolHandle, { isActive: boolean }>(function JwtDecoderApp(_props, ref) {
+const JwtDecoderApp = forwardRef<ToolHandle, ToolProps>(function JwtDecoderApp(_props, ref) {
   const [token, setToken] = useState("");
   const [tab, setTab] = useState<SegmentTab>("payload");
   const [dragOver, setDragOver] = useState(false);
