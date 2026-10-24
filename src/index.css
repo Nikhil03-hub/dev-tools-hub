@@ -1,3 +1,5 @@
+@import "./theme/tokens.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -15,7 +17,7 @@
     background-color: theme("colors.accent.muted");
     color: theme("colors.ink.DEFAULT");
   }
-  /* Minimal, deliberate scrollbars — dark-first, not the browser default */
+  /* Minimal, deliberate scrollbars — token-driven, not the browser default */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -24,13 +26,13 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: #2a2a34;
+    background-color: rgb(var(--c-scroll));
     border-radius: 999px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: #38384a;
+    background-color: rgb(var(--c-scroll));
     background-clip: content-box;
   }
 }

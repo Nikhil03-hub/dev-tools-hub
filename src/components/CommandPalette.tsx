@@ -49,7 +49,7 @@ export default function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-start justify-center bg-black/60 pt-[12vh] backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[90] flex items-start justify-center bg-canvas/70 pt-[12vh] backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div

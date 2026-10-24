@@ -29,9 +29,20 @@ async function setEditorContent(page, containerSelector, text) {
   if (text) await page.keyboard.insertText(text);
 }
 
+// A page with its own console-error collector, for sections that navigate.
+// AGENTS.md §8: never navigate the shared `page` — that would add requests to
+// the after-load network checks it owns.
+async function newCheckedPage(context) {
+  const p = await context.newPage();
+  const errors = [];
+  p.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+  p.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  return { p, errors };
+}
+
 async function main() {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const page = await context.newPage();
 
@@ -1335,7 +1346,7 @@ async function main() {
   await page.evaluate(() => {});
   const lsDump = await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage))));
   const lsKeys = await page.evaluate(() => Object.keys(localStorage));
-  check("no_input_in_local_storage", SECRET_STRINGS.every((s) => !lsDump.includes(s)) && !JWT_RE.test(lsDump) && lsKeys.every((k) => k === "dth.debug.firstSeen"), lsDump.slice(0, 200));
+  check("no_input_in_local_storage", SECRET_STRINGS.every((s) => !lsDump.includes(s)) && !JWT_RE.test(lsDump) && lsKeys.every((k) => ["dth.debug.firstSeen", "dth.theme", "dth.sidebar", "dth.recent", "dth.policy.v1"].includes(k)), lsDump.slice(0, 200));
 
   // clear resets
   await page.getByTestId("btn-debug-clear").click();
@@ -1423,7 +1434,7 @@ async function main() {
   // localStorage again after all three samples were loaded
   const lsDump2 = await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage))));
   const lsKeys2 = await page.evaluate(() => Object.keys(localStorage));
-  check("no_input_in_local_storage_after_all_samples", SECRET_STRINGS.every((s) => !lsDump2.includes(s)) && !JWT_RE.test(lsDump2) && lsKeys2.every((k) => k === "dth.debug.firstSeen"), lsDump2.slice(0, 200));
+  check("no_input_in_local_storage_after_all_samples", SECRET_STRINGS.every((s) => !lsDump2.includes(s)) && !JWT_RE.test(lsDump2) && lsKeys2.every((k) => ["dth.debug.firstSeen", "dth.theme", "dth.sidebar", "dth.recent", "dth.policy.v1"].includes(k)), lsDump2.slice(0, 200));
 
   // ---- Final console/network check ----
   check("no_console_errors", consoleErrors.length === 0, JSON.stringify(consoleErrors));
@@ -1449,6 +1460,39 @@ async function main() {
   check("headers_csp_not_on_wildcard", !/\/\*\n(?:  [^\n]*\n)*  Content-Security-Policy/.test(headersFile), "CSP must not be under /*");
   await page.getByRole("button", { name: /processed locally/i }).click();
   check("privacy_badge_mentions_csp", await page.getByText("connect-src 'none'", { exact: false }).first().isVisible().catch(() => false));
+
+  // ---- theme (T-102) ----
+  const { p, errors } = await newCheckedPage(context);
+  await p.goto(BASE, { waitUntil: "networkidle" });
+
+  // The header button cycles system -> light -> dark -> system, so clicking it
+  // until the attribute reads back the target is the only way to get there
+  // without assuming what the stored preference was on arrival.
+  async function clickThemeTo(target) {
+    for (let i = 0; i < 4; i++) {
+      const cur = await p.evaluate(() => document.documentElement.dataset.theme || "system");
+      if (cur === target) return true;
+      await p.getByTestId("btn-theme").click();
+      await p.waitForTimeout(120);
+    }
+    return false;
+  }
+
+  const toLight = await clickThemeTo("light");
+  const lightBg = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check("theme_light_bg", toLight && lightBg === "rgb(250, 250, 251)", `reached=${toLight} bg=${lightBg}`);
+
+  const toDark = await clickThemeTo("dark");
+  const darkBg = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check("theme_dark_bg", toDark && darkBg === "rgb(11, 11, 15)", `reached=${toDark} bg=${darkBg}`);
+
+  await p.reload({ waitUntil: "networkidle" });
+  const themeAfterReload = await p.evaluate(() => document.documentElement.dataset.theme || "system");
+  check("theme_persists_after_reload", themeAfterReload === "dark", themeAfterReload);
+
+  const backToSystem = await clickThemeTo("system");
+  check("theme_no_console_errors", errors.length === 0, JSON.stringify({ errors, backToSystem }));
+  await p.close();
 
   await browser.close();
 

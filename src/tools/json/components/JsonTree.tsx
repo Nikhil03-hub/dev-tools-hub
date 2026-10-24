@@ -8,10 +8,13 @@ import { previewValue as valuePreview } from "../lib/preview";
 
 const PAGE_SIZE = 100;
 
+// Value colours come from the semantic tokens so the tree keeps working in both
+// themes: string/number/boolean/null each get a distinct hue that is readable on
+// `surface` and on `canvas` (UX_SPEC §2), rather than a fixed Tailwind palette shade.
 const PRIMITIVE_COLOR: Record<string, string> = {
-  string: "text-lime-300",
-  number: "text-amber-300",
-  boolean: "text-pink-300",
+  string: "text-ok",
+  number: "text-warn",
+  boolean: "text-err",
   null: "text-ink-faint",
 };
 
@@ -69,7 +72,7 @@ function TreeNode({
         )}
         {nodeKey !== null && (
           <>
-            <span className="text-sky-200">{typeof nodeKey === "number" ? `[${nodeKey}]` : nodeKey}</span>
+            <span className="text-info">{typeof nodeKey === "number" ? `[${nodeKey}]` : nodeKey}</span>
             <span className="text-ink-faint">:</span>
           </>
         )}

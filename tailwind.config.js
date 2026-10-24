@@ -1,31 +1,35 @@
-import { colors } from "./src/theme/colors.js";
-
 /** @type {import('tailwindcss').Config} */
+// Every colour is an RGB triplet CSS variable from src/theme/tokens.css, so a
+// single `data-theme` attribute repaints the whole app and components never
+// carry a literal colour. `<alpha-value>` is what makes `bg-accent/15` work.
 export default {
-  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        canvas: colors.canvas,
-        surface: colors.surface,
-        raised: colors.raised,
+        canvas: "rgb(var(--c-canvas) / <alpha-value>)",
+        surface: "rgb(var(--c-surface) / <alpha-value>)",
+        raised: "rgb(var(--c-raised) / <alpha-value>)",
         border: {
-          DEFAULT: colors.border,
-          subtle: colors.borderSubtle,
+          DEFAULT: "rgb(var(--c-border) / <alpha-value>)",
+          subtle: "rgb(var(--c-border-subtle) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: colors.accent,
-          hover: colors.accentHover,
-          muted: colors.accentMuted,
+          DEFAULT: "rgb(var(--c-accent) / <alpha-value>)",
+          hover: "rgb(var(--c-accent-hover) / <alpha-value>)",
+          strong: "rgb(var(--c-accent-strong) / <alpha-value>)",
+          muted: "rgb(var(--c-accent) / 0.2)",
+          soft: "rgb(var(--c-accent) / var(--c-soft-alpha))",
         },
-        ok: colors.ok,
-        warn: colors.warn,
-        err: colors.err,
+        "on-accent": "rgb(var(--c-on-accent) / <alpha-value>)",
+        ok: "rgb(var(--c-ok) / <alpha-value>)",
+        warn: "rgb(var(--c-warn) / <alpha-value>)",
+        err: "rgb(var(--c-err) / <alpha-value>)",
+        info: "rgb(var(--c-info) / <alpha-value>)",
         ink: {
-          DEFAULT: colors.ink,
-          dim: colors.inkDim,
-          faint: colors.inkFaint,
+          DEFAULT: "rgb(var(--c-ink) / <alpha-value>)",
+          dim: "rgb(var(--c-ink-dim) / <alpha-value>)",
+          faint: "rgb(var(--c-ink-faint) / <alpha-value>)",
         },
       },
       fontFamily: {

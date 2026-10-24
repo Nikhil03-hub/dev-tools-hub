@@ -1,11 +1,15 @@
-import { Braces, Command } from "lucide-react";
+import { useState } from "react";
+import { Braces, Command, Monitor, Moon, Sun } from "lucide-react";
 import PrivacyBadge from "./PrivacyBadge";
+import { getThemePref, nextThemePref, setThemePref, type ThemePref } from "../shell/theme";
 
 export interface HubTool {
   id: string;
   label: string;
   shortLabel: string;
 }
+
+const THEME_ICON: Record<ThemePref, typeof Monitor> = { system: Monitor, light: Sun, dark: Moon };
 
 export default function Header({
   tools,
@@ -18,6 +22,18 @@ export default function Header({
   onSelectTool: (id: string) => void;
   onOpenPalette: () => void;
 }) {
+  // Repainting is done by the CSS variables in src/theme/tokens.css once
+  // `data-theme` changes; this state only exists so the button can show and
+  // cycle the stored preference.
+  const [themePref, setThemePrefState] = useState<ThemePref>(() => getThemePref());
+  const ThemeIcon = THEME_ICON[themePref];
+
+  function cycleTheme() {
+    const next = nextThemePref(themePref);
+    setThemePref(next);
+    setThemePrefState(next);
+  }
+
   return (
     <header className="flex flex-wrap items-center gap-2.5 border-b border-border-subtle bg-canvas/80 px-4 py-3 backdrop-blur sm:gap-3">
       <div className="flex shrink-0 items-center gap-2">
@@ -61,6 +77,16 @@ export default function Header({
           <Command className="h-3.5 w-3.5" strokeWidth={2} />
           <span className="hidden sm:inline">Commands</span>
           <kbd className="kbd hidden sm:inline-flex">⌘K</kbd>
+        </button>
+        <button
+          type="button"
+          data-testid="btn-theme"
+          onClick={cycleTheme}
+          aria-label={`Theme: ${themePref}. Click to switch.`}
+          title={`Theme: ${themePref}. Click to switch.`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-raised text-ink-dim transition-colors hover:border-accent/50 hover:text-ink"
+        >
+          <ThemeIcon className="h-3.5 w-3.5" strokeWidth={2} />
         </button>
         <PrivacyBadge />
       </div>

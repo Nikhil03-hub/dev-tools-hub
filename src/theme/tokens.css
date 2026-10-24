@@ -1,0 +1,46 @@
+/* Design tokens (docs/v3/UX_SPEC.md §2) — the single source of truth for colour.
+   Values are RGB triplets, not colours, so Tailwind can compose them with an
+   alpha channel: `rgb(var(--c-accent) / <alpha-value>)`. Every token class in
+   the app resolves through here, which is what lets one `data-theme` attribute
+   repaint the whole UI. */
+
+:root { /* light */
+  --c-canvas: 250 250 251; --c-surface: 255 255 255; --c-raised: 243 243 246;
+  --c-border: 228 228 233; --c-border-subtle: 238 238 242;
+  --c-ink: 23 23 30; --c-ink-dim: 82 82 94; --c-ink-faint: 110 110 124;
+  --c-accent: 86 70 216; --c-accent-hover: 72 56 200; --c-accent-strong: 86 70 216;
+  --c-ok: 4 120 87; --c-warn: 180 83 9; --c-err: 198 40 40; --c-info: 29 78 216;
+  --c-soft-alpha: 0.10; --c-scroll: 200 200 210; --c-on-accent: 255 255 255;
+  --c-syn-prop: 3 105 161; --c-syn-string: 77 124 15; --c-syn-number: 180 83 9;
+  --c-syn-bool: 190 24 93; --c-syn-keyword: 109 40 217; --c-syn-typedef: 29 78 216;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] { /* dark */
+  --c-canvas: 11 11 15; --c-surface: 18 18 24; --c-raised: 26 26 34;
+  --c-border: 42 42 53; --c-border-subtle: 31 31 40;
+  --c-ink: 237 237 242; --c-ink-dim: 161 161 176; --c-ink-faint: 130 130 143;
+  --c-accent: 139 124 248; --c-accent-hover: 160 148 250; --c-accent-strong: 99 82 232;
+  --c-ok: 52 211 153; --c-warn: 251 191 36; --c-err: 248 113 113; --c-info: 96 165 250;
+  --c-soft-alpha: 0.16; --c-scroll: 56 56 74; --c-on-accent: 255 255 255;
+  --c-syn-prop: 125 211 252; --c-syn-string: 163 230 53; --c-syn-number: 251 191 36;
+  --c-syn-bool: 244 114 182; --c-syn-keyword: 196 181 253; --c-syn-typedef: 147 197 253;
+  color-scheme: dark;
+}
+
+/* "system" preference: `data-theme` is absent, so the OS choice decides. The
+   dark values are repeated here rather than shared via a class so that an
+   explicit `data-theme="light"` always wins and can override a dark OS. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --c-canvas: 11 11 15; --c-surface: 18 18 24; --c-raised: 26 26 34;
+    --c-border: 42 42 53; --c-border-subtle: 31 31 40;
+    --c-ink: 237 237 242; --c-ink-dim: 161 161 176; --c-ink-faint: 130 130 143;
+    --c-accent: 139 124 248; --c-accent-hover: 160 148 250; --c-accent-strong: 99 82 232;
+    --c-ok: 52 211 153; --c-warn: 251 191 36; --c-err: 248 113 113; --c-info: 96 165 250;
+    --c-soft-alpha: 0.16; --c-scroll: 56 56 74; --c-on-accent: 255 255 255;
+    --c-syn-prop: 125 211 252; --c-syn-string: 163 230 53; --c-syn-number: 251 191 36;
+    --c-syn-bool: 244 114 182; --c-syn-keyword: 196 181 253; --c-syn-typedef: 147 197 253;
+    color-scheme: dark;
+  }
+}

@@ -9,8 +9,9 @@ interface Region {
   children: Region[];
 }
 
-// The canvas background is a very dark near-black (see theme/colors.js),
-// so a low-opacity tint barely reads as distinct from unhighlighted text —
+// Matches are painted over `canvas` (see `--c-canvas` in src/theme/tokens.css),
+// a low-chroma surface in both themes, so a low-opacity tint barely reads as
+// distinct from unhighlighted text —
 // this was reported as a real contrast bug (matches with no capture groups,
 // e.g. `\d+` or `hello`, only ever got this base shade and were nearly
 // invisible). 40% is the lowest opacity that still stands out clearly
