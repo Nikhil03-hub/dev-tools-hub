@@ -9,7 +9,7 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 
 | # | ID | Title | Spec | Depends on | Status |
 |---|---|---|---|---|---|
-| 1 | T-101 | Tooling and gates (no behaviour change) | tasks/P1_foundation.md | — | READY |
+| 1 | T-101 | Tooling and gates (no behaviour change) | tasks/P1_foundation.md | — | DONE |
 | 2 | T-102 | Design tokens, light/dark/system theme | tasks/P1_foundation.md | T-101 | READY |
 | 3 | T-103 | Tool registry + lazy loading + keep-alive | tasks/P1_foundation.md | T-102 | READY |
 | 4 | T-104 | Multi-file build, path URLs, static SEO pages, V3 CSP | tasks/P1_foundation.md | T-103 | READY |

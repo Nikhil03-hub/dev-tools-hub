@@ -1,7 +1,8 @@
-const { chromium } = require(process.env.PW_MODULE || "/home/claude/.npm-global/lib/node_modules/playwright");
+const { chromium } = require(process.env.PW_MODULE || "playwright");
 
-const BASE = "http://127.0.0.1:4173/";
-const SHOT_DIR = process.env.SHOT_DIR || "/home/claude/json-workbench/test";
+const BASE = process.env.E2E_BASE || "http://127.0.0.1:4173/";
+const SHOT_DIR = process.env.SHOT_DIR || "test-results/e2e-shots";
+require("fs").mkdirSync(SHOT_DIR, { recursive: true });
 
 const BROKEN_JSON = '{\n  "a": 1,\n  "b": [1, 2,]\n}';
 

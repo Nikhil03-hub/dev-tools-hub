@@ -8,9 +8,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/postbuild-security.mjs",
     "preview": "vite preview",
-    "verify:lib": "npx tsx scripts/verify_lib.ts",
-    "verify:debugkit": "npx tsx scripts/verify_debugkit.ts",
-    "test:e2e": "node test/e2e.cjs"
+    "typecheck": "tsc --noEmit",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
+    "test:unit": "vitest run",
+    "verify:lib": "tsx scripts/verify_lib.ts",
+    "verify:debugkit": "tsx scripts/verify_debugkit.ts",
+    "check": "npm run typecheck && npm run check:boundaries && npm run test:unit && npm run verify:lib && npm run verify:debugkit && npm run build",
+    "test:e2e": "node scripts/run-e2e.mjs"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.2",
@@ -32,10 +36,13 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
+    "playwright": "1.64.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
+    "tsx": "4.23.15",
     "typescript": "^5.6.3",
     "vite": "^6.4.3",
-    "vite-plugin-singlefile": "^2.1.0"
+    "vite-plugin-singlefile": "^2.1.0",
+    "vitest": "5.0.5"
   }
 }

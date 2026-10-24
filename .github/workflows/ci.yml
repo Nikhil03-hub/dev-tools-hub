@@ -39,7 +39,9 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
-      - run: npx --yes tsx@4 scripts/verify_lib.ts
-      - run: npx --yes tsx@4 scripts/verify_debugkit.ts
+      - run: npm run check:boundaries
+      - run: npm run test:unit
+      - run: npm run verify:lib
+      - run: npm run verify:debugkit
 
       - run: npm run build

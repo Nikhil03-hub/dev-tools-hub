@@ -3,3 +3,4 @@ dist-dev
 *.log
 .DS_Store
 dist
+test-results

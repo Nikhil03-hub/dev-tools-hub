@@ -31,9 +31,10 @@ npm run build
 ## Test
 
 ```bash
-npm run verify:lib
-npx vite preview --port 4173 &
-PW_CHROMIUM=/opt/pw-browsers/chromium SHOT_DIR=/tmp/shots npm run test:e2e
+npm ci
+npx playwright install chromium   # once per machine
+npm run check                     # typecheck, boundaries, unit, verify_lib, verify_debugkit, build
+npm run test:e2e                  # browser suite against dist/
 ```
 
 ## Deploy
