@@ -43,7 +43,7 @@ export default function TimezonePicker({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search IANA zones, e.g. Tokyo, Paris…"
           spellCheck={false}
-          className="w-full rounded-lg border border-border bg-raised py-1.5 pl-8 pr-3 text-xs text-ink outline-none focus:border-accent/50 placeholder:text-ink-faint"
+          className="w-full rounded-lg border border-border bg-raised py-1.5 pl-8 pr-3 text-xs text-ink focus:border-accent/50 placeholder:text-ink-faint"
         />
       </div>
       {results.length > 0 && (

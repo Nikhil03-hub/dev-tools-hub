@@ -75,3 +75,13 @@ Not a focus issue, recorded here because it is the same class of "the UI asserts
 `copyText()` in `src/lib/clipboard.ts:1` returns `Promise<boolean>`. `copySanitized()` in `src/tools/debug/DebugReportApp.tsx:116` does `await copyText(report.sanitized); toast("Copied sanitized input");` and **discards the boolean**. If both the async clipboard and the legacy `execCommand` path fail, the user is told it succeeded. For the product's core action — "copy this safe report into your ticket" — a false success is the worst possible failure mode.
 
 UX_SPEC §5 already specifies the correct behaviour for the shared `CopyButton`: toast "Copied" / "Copy failed — select and copy manually". Belongs to **T-108**'s `CopyButton` work. Acceptance should include a test that makes the clipboard reject and asserts the failure toast, not just the happy path.
+
+## Status update — CP1 review: repaired
+
+Re-counted against the tree: **16** outline-removal sites, **9** with no replacement (not 17/10 — the T-107 palette rewrite removed one).
+
+The repair is a global `:focus-visible` rule plus removal of every `outline-none`, with two inset exceptions because a positive offset is clipped inside panes: `textarea:focus-visible` and the CodeMirror frame ring both use `outline-offset: -2px`.
+
+Regression tests: 8 checks covering four real controls in both themes, asserting `:focus-visible`, a non-transparent 2px outline, and a non-positive offset for edge-to-edge controls. Verified visually (`test-results/cp1/focus-json-light.jpg`, `focus-debug-dark.jpg`).
+
+`R-CP1-focus` may be closed after Opus confirms; the implementer must not delete the reviewer-owned row.

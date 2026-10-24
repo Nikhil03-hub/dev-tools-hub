@@ -75,6 +75,14 @@ describe("detectInput", () => {
     expect(detectInput("/^abc+$/")[0]).toMatchObject({ toolId: "regex-tester", confidence: 0.5 });
   });
 
+  it("detects a regex literal with flags", () => {
+    expect(detectInput("/foo/gi")[0]).toMatchObject({ toolId: "regex-tester", confidence: 0.5 });
+  });
+
+  it("does not treat a plain path as a regex", () => {
+    expect(detectInput("/usr/bin").map((d) => d.toolId)).not.toContain("regex-tester");
+  });
+
   it("returns nothing for ordinary prose", () => {
     expect(detectInput("Please fix the login page, it is slow today.")).toEqual([]);
   });

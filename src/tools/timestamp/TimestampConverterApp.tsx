@@ -241,7 +241,7 @@ const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function Timesta
                 placeholder="1735689600"
                 inputMode="numeric"
                 spellCheck={false}
-                className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent/50 placeholder:text-ink-faint"
+                className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink focus:border-accent/50 placeholder:text-ink-faint"
               />
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -289,7 +289,7 @@ const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function Timesta
                   setSelectedPresetId(null);
                   setDateTimeInput(e.target.value);
                 }}
-                className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent/50"
+                className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink focus:border-accent/50"
               />
             </div>
             <div>
@@ -301,7 +301,7 @@ const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function Timesta
                 data-testid="timestamp-interpret-zone"
                 value={interpretZone}
                 onChange={(e) => setInterpretZone(e.target.value)}
-                className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 text-[13px] text-ink outline-none focus:border-accent/50"
+                className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 text-[13px] text-ink focus:border-accent/50"
               >
                 {allZones.map((zone) => (
                   <option key={zone} value={zone}>

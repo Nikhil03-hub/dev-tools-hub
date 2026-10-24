@@ -91,3 +91,16 @@ Additional evidence: `test-results/t105/`, `t106/`, `t108/` (shell, home, tool l
 
 - `git status`: clean after the T-109 commit.
 - **Nothing has been pushed. Nothing has been deployed.** No Netlify command has run in this phase.
+
+## Post-review update
+
+An audit against the tree found four material defects; all were repaired and verified. Full report: `CP1-review.md`.
+
+- **Focus rings** restored globally. Corrected count: **16** outline-removal sites, **9** with no replacement (not 17/10 — the palette rewrite removed one). Added 8 regression checks with a geometric assertion that the ring is drawn *inside* edge-to-edge controls, because the first repair passed on computed style while being visually clipped.
+- **Home no longer downloads CodeMirror.** React had been hoisted into the editor chunk, so the entry preloaded 170 kB gzip of editor on `/`. Explicit `vendor` chunk split; home now loads `index` 21.0 kB + `vendor` 44.7 kB gzip only (entry was 63.5 kB).
+- **Regex hand-off carries flags** (`g/i/m/s`), and the detector recognises `/foo/gi` while still rejecting `/usr/bin`.
+- **Theme cycle assertion** now includes `backToSystem`.
+
+Final totals: `npm run check` exit 0 (unit **56/56**, verify_debugkit 147/147, budgets OK); `npm run test:e2e` **329 PASS / 0 FAILURE** (`V3/e2e-CP1-final3.log`).
+
+CP1 remains **PENDING** — this audit was performed by the implementing agent, so Opus still owns acceptance.

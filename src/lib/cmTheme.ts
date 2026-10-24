@@ -55,7 +55,13 @@ export const cmDarkTheme = EditorView.theme({
   // CodeMirror's default placeholder is #888, which fails 4.5:1 on light
   // surfaces (measured 3.3:1). Use the same faint token as the rest of the UI.
   ".cm-placeholder": { color: "rgb(var(--c-ink-faint))" },
-  "&.cm-editor.cm-focused": { outline: "none" },
+  // The editor is a composite widget, so the ring belongs on the frame rather
+  // than on .cm-content (whose outline is clipped by .cm-scroller's overflow).
+  // A negative offset draws the ring INSIDE the frame: with a positive offset a
+  // pane's overflow-hidden clips it and the user sees only a sliver.
+  // This replaces the old `outline: none`, which removed the indicator entirely.
+  "&.cm-editor:focus-within": { outline: "2px solid rgb(var(--c-accent))", outlineOffset: "-2px" },
+  ".cm-content:focus-visible": { outline: "none" },
 });
 
 export const cmHighlightStyle = HighlightStyle.define([

@@ -263,7 +263,7 @@ const DebugReportApp = forwardRef<ToolHandle, ToolProps>(function DebugReportApp
             aria-label="Debug input"
             placeholder={PLACEHOLDER}
             spellCheck={false}
-            className="h-full min-h-[14rem] w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink outline-none placeholder:text-ink-faint"
+            className="h-full min-h-[14rem] w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink placeholder:text-ink-faint"
           />
           {dragOver && (
             <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-accent bg-canvas/90 text-accent">

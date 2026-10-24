@@ -28,11 +28,12 @@ export interface ToolHostHandle {
   getActiveHandle: () => ToolHandle | null;
 }
 
-const ToolHost = forwardRef<ToolHostHandle, { activeId: string }>(function ToolHost({ activeId }, ref) {
-  const [mounted, setMounted] = useState<string[]>([activeId]);
+const ToolHost = forwardRef<ToolHostHandle, { activeId: string | null }>(function ToolHost({ activeId }, ref) {
+  const [mounted, setMounted] = useState<string[]>(() => (activeId ? [activeId] : []));
   const handles = useRef(new Map<string, RefObject<ToolHandle>>());
 
   useEffect(() => {
+    if (!activeId) return;
     setMounted((prev) => {
       if (prev[prev.length - 1] === activeId) return prev;
       return [...prev.filter((id) => id !== activeId), activeId].slice(-MAX_MOUNTED);
@@ -41,7 +42,7 @@ const ToolHost = forwardRef<ToolHostHandle, { activeId: string }>(function ToolH
 
   useImperativeHandle(
     ref,
-    () => ({ getActiveHandle: () => handles.current.get(activeId)?.current ?? null }),
+    () => ({ getActiveHandle: () => (activeId ? handles.current.get(activeId)?.current ?? null : null) }),
     [activeId]
   );
 
@@ -50,8 +51,9 @@ const ToolHost = forwardRef<ToolHostHandle, { activeId: string }>(function ToolH
   // show an empty workspace for one frame. It must de-duplicate exactly like the
   // effect does — appending a tool that is already mounted renders it twice,
   // which duplicates its test ids and its live editors.
-  const ids =
-    mounted[mounted.length - 1] === activeId
+  const ids = !activeId
+    ? mounted
+    : mounted[mounted.length - 1] === activeId
       ? mounted
       : [...mounted.filter((id) => id !== activeId), activeId].slice(-MAX_MOUNTED);
 

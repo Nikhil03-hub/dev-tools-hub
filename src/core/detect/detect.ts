@@ -94,7 +94,10 @@ export function detectInput(text: string, availableIds?: ReadonlySet<string>): D
     add({ toolId: "encode-generate", confidence: 0.55, label: "Looks like Base64", hint: "base64" }, 10);
   }
 
-  if (trimmed.length >= 3 && trimmed.startsWith("/") && trimmed.endsWith("/")) {
+  // A regex literal may carry flags (/foo/gi). Without the optional flag group
+  // the flag-preserving hand-off below would be unreachable from the only place
+  // a hand-off can start.
+  if (trimmed.length >= 3 && /^\/.+\/[dgimsuvy]*$/.test(trimmed)) {
     add({ toolId: "regex-tester", confidence: 0.5, label: "Looks like a regex" }, 11);
   }
 

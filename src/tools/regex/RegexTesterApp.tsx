@@ -127,8 +127,18 @@ const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp
     const handoff = takeHandoff("regex-tester");
     if (!handoff) return;
     const m = /^\/([\s\S]+)\/([a-z]*)$/.exec(handoff.text);
-    if (m) setPattern(m[1]);
-    else setText(handoff.text);
+    if (m) {
+      setPattern(m[1]);
+      // UiFlags → engine flags: allMatches = g, caseInsensitive = i,
+      // multiline = m, dotAll = s. Additive: unlisted flags keep their state.
+      const parsed = m[2];
+      setFlags((prev) => ({
+        allMatches: parsed.includes("g") ? true : prev.allMatches,
+        caseInsensitive: parsed.includes("i") ? true : prev.caseInsensitive,
+        multiline: parsed.includes("m") ? true : prev.multiline,
+        dotAll: parsed.includes("s") ? true : prev.dotAll,
+      }));
+    } else setText(handoff.text);
   }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
@@ -172,7 +182,7 @@ const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp
               onChange={(e) => setPattern(e.target.value)}
               placeholder={String.raw`\d+`}
               spellCheck={false}
-              className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent/50 placeholder:text-ink-faint"
+              className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink focus:border-accent/50 placeholder:text-ink-faint"
             />
           </div>
 
@@ -218,7 +228,7 @@ const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp
             aria-label="Test text"
             placeholder="Paste, type, or drop the text to test your pattern against…"
             spellCheck={false}
-            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink outline-none placeholder:text-ink-faint"
+            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink placeholder:text-ink-faint"
           />
           {dragOver && (
             <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-accent bg-canvas/90 text-accent">

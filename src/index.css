@@ -50,6 +50,20 @@
   }
 }
 
+/* Global keyboard focus ring (R-CP1-focus). Components may opt into the same
+   ring with .focus-ring; nothing may remove it without a replacement. Kept
+   outside @layer so it always wins over utility resets. */
+:focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+}
+
+/* Edge-to-edge textareas sit inside panes with overflow:hidden, so a ring drawn
+   outside their box is clipped. Draw it inside instead. */
+textarea:focus-visible {
+  outline-offset: -2px;
+}
+
 /* Prerendered, crawlable content. It is what a search engine and a no-JS
    visitor see before React mounts, and it is styled without Tailwind because
    it is generated outside the component tree. */

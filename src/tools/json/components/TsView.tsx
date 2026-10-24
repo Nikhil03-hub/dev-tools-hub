@@ -33,7 +33,7 @@ export default function TsView({
           <input
             value={rootName}
             onChange={(e) => onRootNameChange(e.target.value.replace(/[^A-Za-z0-9_$]/g, ""))}
-            className="w-28 rounded-md border border-border bg-raised px-2 py-1 font-mono text-xs text-ink outline-none focus:border-accent"
+            className="w-28 rounded-md border border-border bg-raised px-2 py-1 font-mono text-xs text-ink focus:border-accent"
             placeholder="Root"
           />
         </label>

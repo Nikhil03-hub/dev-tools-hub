@@ -48,8 +48,11 @@ export default function App() {
 
   // The ToolHost always keeps the last real tool mounted (hidden on other
   // routes) so switching to the home page never discards a pasted input.
-  const activeId = route.kind === "tool" ? route.id : DEFAULT_TOOL;
-  const recent = useRecentTools(route.kind === "tool" ? route.id : null);
+  // null on home/static routes: no tool is mounted or highlighted until one is
+  // actually opened, so the home page never downloads an editor chunk.
+  const toolId = route.kind === "tool" ? route.id : null;
+  const activeId = toolId ?? DEFAULT_TOOL;
+  const recent = useRecentTools(toolId);
   const staticPage: StaticPageData | null =
     route.kind === "page"
       ? STATIC_PAGES.find((p) => p.id === route.id) ?? null
@@ -181,7 +184,7 @@ export default function App() {
           showMenu={!isDesktop}
         />
         <div className={route.kind === "tool" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"}>
-          <ToolHost ref={hostRef} activeId={activeId} />
+          <ToolHost ref={hostRef} activeId={toolId} />
         </div>
 
         {route.kind !== "tool" && (

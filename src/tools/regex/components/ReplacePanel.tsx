@@ -27,7 +27,7 @@ export default function ReplacePanel({
           onChange={(e) => onReplacementChange(e.target.value)}
           placeholder="$1 at $2"
           spellCheck={false}
-          className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink outline-none focus:border-accent/50 placeholder:text-ink-faint"
+          className="w-full rounded-lg border border-border bg-raised px-3 py-1.5 font-mono text-[13px] text-ink focus:border-accent/50 placeholder:text-ink-faint"
         />
       </div>
 

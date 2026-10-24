@@ -1512,7 +1512,7 @@ async function main() {
   check("theme_persists_after_reload", themeAfterReload === "dark", themeAfterReload);
 
   const backToSystem = await clickThemeTo("system");
-  check("theme_no_console_errors", errors.length === 0, JSON.stringify({ errors, backToSystem }));
+  check("theme_no_console_errors", errors.length === 0 && backToSystem, JSON.stringify({ errors, backToSystem }));
   await p.close();
 
   // ---- paths & pages (T-104) ----
@@ -1862,6 +1862,85 @@ async function main() {
         await ap.close();
       }
     }
+  }
+
+  // ---- R-CP1-focus: visible keyboard focus, measured not assumed ----
+  {
+    // mustBeInset: controls that sit edge-to-edge inside a pane with
+    // overflow:hidden. A positive outline-offset would be clipped there, so the
+    // ring must be drawn inside the control. Computed style alone cannot see
+    // clipping — the offset is the geometric part of the assertion.
+    const CONTROLS = [
+      ["json_editor", "json-formatter/", '[data-testid="main-editor"] .cm-content', true],
+      ["debug_textarea", "debug-report/", '[data-testid="debug-input"]', true],
+      ["jwt_textarea", "jwt-decoder/", '[data-testid="jwt-input"] textarea', true],
+      ["regex_pattern", "regex-tester/", '[data-testid="regex-pattern-input"]', false],
+    ];
+    for (const theme of ["light", "dark"]) {
+      for (const [name, slug, selector, mustBeInset] of CONTROLS) {
+        const { p: fp } = await newCheckedPage(context);
+        await fp.goto(BASE + slug, { waitUntil: "networkidle" });
+        await fp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+        await fp.reload({ waitUntil: "networkidle" });
+        await fp.waitForTimeout(200);
+        const result = await fp.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return { missing: true };
+          el.focus();
+          // CodeMirror paints the ring on its frame; plain inputs on themselves.
+          const target = el.closest(".cm-editor") ?? el;
+          const s = getComputedStyle(target);
+          return {
+            focused: document.activeElement === el,
+            focusVisible: el.matches(":focus-visible"),
+            outlineStyle: s.outlineStyle,
+            outlineWidth: s.outlineWidth,
+            outlineColor: s.outlineColor,
+            outlineOffset: parseFloat(s.outlineOffset) || 0,
+          };
+        }, selector);
+        const ringVisible =
+          !result.missing &&
+          result.focused &&
+          result.focusVisible &&
+          result.outlineStyle !== "none" &&
+          result.outlineWidth !== "0px" &&
+          !/rgba\(0, 0, 0, 0\)/.test(result.outlineColor);
+        check(
+          `focus_ring_${name}_${theme}`,
+          ringVisible && (!mustBeInset || result.outlineOffset <= 0),
+          JSON.stringify(result)
+        );
+        await fp.close();
+      }
+    }
+  }
+
+  // ---- regex hand-off carries flags (T-109 review repair) ----
+  {
+    const { p: rp } = await newCheckedPage(context);
+    await rp.goto(BASE, { waitUntil: "networkidle" });
+    await rp.getByTestId("home-paste").fill("/foo/gi");
+    await rp.waitForTimeout(400);
+    await rp.getByTestId("home-suggest-regex-tester").click();
+    await rp.waitForTimeout(500);
+    const pattern = await rp.getByTestId("regex-pattern-input").inputValue();
+    const iOn = await rp.getByTestId("regex-flag-i").getAttribute("aria-pressed");
+    const gOn = await rp.getByTestId("regex-mode-all").getAttribute("aria-pressed");
+    check("regex_handoff_applies_flags", pattern === "foo" && iOn === "true" && gOn === "true", JSON.stringify({ pattern, iOn, gOn }));
+    await rp.close();
+  }
+
+  // ---- home route must not preload an editor it never shows ----
+  {
+    const { p: np } = await newCheckedPage(context);
+    const requested = [];
+    np.on("request", (r) => requested.push(r.url()));
+    await np.goto(BASE, { waitUntil: "networkidle" });
+    const jsFiles = requested.filter((u) => /\/assets\/.*\.js$/.test(u)).map((u) => u.split("/").pop());
+    const editorLoaded = jsFiles.some((f) => /codemirror|JsonWorkbenchApp|JsonEditor|DebugReportApp/i.test(f));
+    check("home_loads_no_editor_chunk", !editorLoaded, JSON.stringify(jsFiles));
+    await np.close();
   }
 
   await browser.close();

@@ -107,7 +107,7 @@ export default function HashPanel({
             aria-label="Text to hash"
             placeholder="Type or paste text to hash…"
             spellCheck={false}
-            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink outline-none placeholder:text-ink-faint"
+            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink placeholder:text-ink-faint"
           />
         </div>
       </section>

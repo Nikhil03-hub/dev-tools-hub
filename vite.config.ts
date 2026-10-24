@@ -15,6 +15,11 @@ export default defineConfig({
         // name that scripts/check-budgets.mjs recognises as a shared chunk.
         manualChunks(id) {
           if (/[\\/]node_modules[\\/](@codemirror|@lezer|@uiw)[\\/]/.test(id)) return "codemirror";
+          // Without an explicit home, Rollup can place React in whichever chunk
+          // first used it — which was the editor chunk. The entry then imported
+          // React *from* the editor chunk and preloaded ~173 kB gzip of
+          // CodeMirror on the home page, where no editor exists.
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "vendor";
           return undefined;
         },
       },

@@ -147,7 +147,7 @@ const JwtDecoderApp = forwardRef<ToolHandle, ToolProps>(function JwtDecoderApp(p
             aria-label="JWT input"
             placeholder="Paste a JWT here (header.payload.signature)…"
             spellCheck={false}
-            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink outline-none placeholder:text-ink-faint"
+            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink placeholder:text-ink-faint"
           />
           {dragOver && (
             <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-accent bg-canvas/90 text-accent">

@@ -62,6 +62,12 @@ Full detail in `docs/v3/reports/A11Y-focus-indicator-finding.md`.
 2. T-107 … T-109, then **STOP at CP1** and hand to Opus with `git log`, the e2e log and screenshots. Do not push.
 3. Reviewer decides on `R-CP1-focus` before RC1.
 
+## CP1 review pass (after T-109)
+
+A self-audit found and fixed four material defects: 9 legacy controls with no focus indicator, a clipped-ring false pass, the home page downloading the 170 kB editor chunk, and an unreachable regex-flag hand-off. Totals are now **329/329 e2e** and `npm run check` exit 0.
+
+Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next action is Opus confirming the review, then the owner pushing `v3`. Non-blocking follow-ups: the 13.5px font, duplicate recents, and a light-theme scroll assertion.
+
 ## Lessons from T-105 worth not repeating
 
 - Screenshots caught a defect the suite could not: the mobile drawer rendered as a 56px icon rail because the collapse default was derived from the desktop breakpoint. The e2e check now asserts the drawer's text contains tool labels, so "visible but useless" fails.

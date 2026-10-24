@@ -140,7 +140,7 @@ export default function UrlEncodePanel({
             aria-label={direction === "encode" ? "Text to encode" : "Text to decode"}
             placeholder={direction === "encode" ? "Type or paste text/URL to encode…" : "Paste percent-encoded text to decode…"}
             spellCheck={false}
-            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink outline-none placeholder:text-ink-faint"
+            className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink placeholder:text-ink-faint"
           />
         </div>
       </section>
@@ -183,7 +183,7 @@ export default function UrlEncodePanel({
               readOnly
               aria-label="Result"
               spellCheck={false}
-              className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink outline-none"
+              className="h-full w-full resize-none bg-transparent p-3.5 font-mono text-[13px] leading-6 text-ink"
             />
           )}
         </div>
