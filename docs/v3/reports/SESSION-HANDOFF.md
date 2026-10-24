@@ -15,9 +15,10 @@ Written by the implementer at the end of a session that started from `74958ec` (
 | T-101 fix 2 (harden clipboard) | DONE | `0347593` | e2e 256/256, 11-case mutation proof |
 | T-103 registry + lazy + keep-alive | DONE | `aad188e` | check PASS, e2e **257/257** |
 | T-104 multi-file build + path URLs + SEO + CSP | DONE | `b349b9d` | check PASS, e2e **269/269** |
-| Session handoff (this file) | DONE | `8367ffc` | HEAD when T-105 starts |
-| **T-105 app shell** | **NOT STARTED** | — | next READY task |
-| T-106 home / T-107 palette v2 / T-108 tool frame / T-109 a11y | NOT STARTED | — | after T-105 |
+| Session handoff (first) | DONE | `8367ffc` | — |
+| T-105 app shell (sidebar, top bar, drawer) | DONE | `2b2bb2c` | check PASS, e2e **277/277** |
+| **T-106 home page + paste detection** | **NOT STARTED** | — | next READY task |
+| T-107 palette v2 / T-108 tool frame / T-109 a11y | NOT STARTED | — | after T-106 |
 
 `npm run check` = typecheck, boundaries (13 pure files), registry (6 tools), unit 15/15, verify_lib ALL PASS, verify_debugkit 147/147, build with postbuild pages + CSP + budgets, `check-budgets: OK`.
 
@@ -53,6 +54,13 @@ Full detail in `docs/v3/reports/A11Y-focus-indicator-finding.md`.
 
 ## Next steps, in order
 
-1. T-105 (app shell). Spec is complete; it deletes `src/components/Header.tsx` and adds `Sidebar`, `TopBar`, `PrivacyPopover`, `MobileDrawer`, `useRecentTools`, `IconButton`, `Popover`, `Kbd`. It also adds the six shell e2e checks and one allowed edit to the Debug mobile block. Remember `data-testid="tool-tab-<legacyHash>"` must remain unique on the page (desktop sidebar is not rendered below 768 px).
-2. T-106 … T-109, then **STOP at CP1** and hand to Opus with `git log`, the e2e log and screenshots. Do not push.
+1. T-106 (home page + "Paste anything" detection). Read `docs/v3/tasks/P1_foundation.md` §T-106. It adds `src/core/detect/*`, `HomePage`, `handoff.ts`, `StaticPage`, and switches the `activeId` fallback in `src/App.tsx` from `DEFAULT_TOOL` to a real route switch. That single line is commented in `App.tsx` for exactly this change. It also fixes the currently inert `/privacy/` link in `PrivacyPopover`.
+2. T-107 … T-109, then **STOP at CP1** and hand to Opus with `git log`, the e2e log and screenshots. Do not push.
 3. Reviewer decides on `R-CP1-focus` before RC1.
+
+## Lessons from T-105 worth not repeating
+
+- Screenshots caught a defect the suite could not: the mobile drawer rendered as a 56px icon rail because the collapse default was derived from the desktop breakpoint. The e2e check now asserts the drawer's text contains tool labels, so "visible but useless" fails.
+- Never verify focus visibility with programmatic `.focus()`: Chromium does not apply `:focus-visible` to it. The shell check presses Tab and then reads `getComputedStyle(activeElement)`.
+- `npm run test:e2e` output stays buffered to a file (`PASS=0` mid-run is normal).
+- `vite preview` takes ~8–10s to answer on this machine; a 5s curl check reports 000 and is not a failure.
