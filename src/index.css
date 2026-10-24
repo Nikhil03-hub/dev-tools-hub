@@ -41,6 +41,13 @@
   .kbd {
     @apply inline-flex items-center justify-center rounded border border-border bg-raised px-1.5 py-0.5 text-[11px] font-mono text-ink-dim shadow-none;
   }
+  /* Shell controls carry their own visible focus ring (T-105 AC4). The broader
+     repair of the 17 legacy outline-none sites is tracked separately as
+     R-CP1-focus — see docs/v3/reports/A11Y-focus-indicator-finding.md. */
+  .focus-ring:focus-visible {
+    outline: 2px solid rgb(var(--c-accent));
+    outline-offset: 2px;
+  }
 }
 
 /* Prerendered, crawlable content. It is what a search engine and a no-JS

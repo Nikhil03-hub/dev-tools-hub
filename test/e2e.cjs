@@ -1434,8 +1434,8 @@ async function main() {
   const w844 = await mobileOverflow(390, 844);
   await page.screenshot({ path: `${SHOT_DIR}/wp2-debug-390x844.png` });
   check("debug_mobile_390x844_no_overflow", w844 <= 390, `${w844}`);
-  const navInfo = await page.getByTestId("tool-switcher").evaluate((el) => ({ ov: getComputedStyle(el).overflowX, sw: el.scrollWidth, cw: el.clientWidth }));
-  check("debug_nav_scrolls_not_page_on_mobile", w844 <= 390 && (navInfo.ov === "auto" || navInfo.ov === "scroll") && navInfo.cw <= 390, JSON.stringify(navInfo));
+  const menuVisible = await page.getByTestId("btn-menu").isVisible();
+  check("debug_nav_scrolls_not_page_on_mobile", w844 <= 390 && menuVisible, JSON.stringify({ w844, menuVisible }));
   const w640 = await mobileOverflow(390, 640);
   await page.screenshot({ path: `${SHOT_DIR}/wp2-debug-390x640.png` });
   check("debug_mobile_390x640_no_overflow", w640 <= 390, `${w640}`);
@@ -1571,6 +1571,100 @@ async function main() {
   );
   check("sitemap_lists_tools", fsRead("sitemap.xml").includes("/debug-report/"));
   check("notfound_page_exists", fsRead("404.html").includes("Page not found"));
+
+  // ---- shell (T-105) ----
+  {
+    const { p: sp, errors: se } = await newCheckedPage(context);
+    await sp.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
+
+    const linkCount = await sp.getByTestId("tool-switcher").locator("a").count();
+    check("shell_sidebar_has_all_tools", linkCount === 6, String(linkCount));
+
+    // AC4: reach the link with the Tab key, then read the REAL computed outline.
+    // Programmatic .focus() would not match :focus-visible, so this drives the
+    // keyboard like a person would.
+    let tabbedToLink = false;
+    for (let i = 0; i < 40; i++) {
+      await sp.keyboard.press("Tab");
+      const active = await sp.evaluate(() => document.activeElement?.getAttribute("data-testid"));
+      if (active === "tool-tab-jwt") {
+        tabbedToLink = true;
+        break;
+      }
+    }
+    const ring = await sp.evaluate(() => {
+      const el = document.activeElement;
+      if (!el) return null;
+      const s = getComputedStyle(el);
+      return { outlineStyle: s.outlineStyle, outlineWidth: s.outlineWidth, outlineColor: s.outlineColor };
+    });
+    check(
+      "shell_focus_ring_visible",
+      tabbedToLink && ring !== null && ring.outlineStyle !== "none" && ring.outlineWidth !== "0px" && !/rgba\(0, 0, 0, 0\)/.test(ring.outlineColor),
+      JSON.stringify({ tabbedToLink, ring })
+    );
+
+    await sp.getByRole("button", { name: /processed locally/i }).click();
+    const popoverOpen = await sp.getByTestId("privacy-popover").isVisible();
+    const popoverText = await sp.getByTestId("privacy-popover").innerText();
+    await sp.keyboard.press("Escape");
+    await sp.waitForTimeout(120);
+    const popoverClosed = !(await sp.getByTestId("privacy-popover").isVisible().catch(() => false));
+    check(
+      "shell_privacy_popover_text",
+      popoverOpen && popoverText.includes("connect-src 'none'") && popoverClosed,
+      JSON.stringify({ popoverOpen, popoverClosed })
+    );
+
+    await sp.getByTestId("tool-tab-jwt").click();
+    await sp.waitForTimeout(200);
+    await sp.getByTestId("tool-tab-regex").click();
+    await sp.waitForTimeout(200);
+    const recentJwt = await sp.getByTestId("recent-jwt-decoder").count();
+    const recentRegex = await sp.getByTestId("recent-regex-tester").count();
+    check("shell_recent_updates", recentJwt === 1 && recentRegex === 1, JSON.stringify({ recentJwt, recentRegex }));
+
+    await sp.getByTestId("btn-collapse-sidebar").click();
+    await sp.waitForTimeout(120);
+    const collapsedWidth = await sp.evaluate(() => document.querySelector("aside")?.getBoundingClientRect().width ?? -1);
+    await sp.reload({ waitUntil: "networkidle" });
+    const afterReloadWidth = await sp.evaluate(() => document.querySelector("aside")?.getBoundingClientRect().width ?? -1);
+    check(
+      "shell_collapse_persists",
+      Math.round(collapsedWidth) === 56 && Math.round(afterReloadWidth) === 56,
+      JSON.stringify({ collapsedWidth, afterReloadWidth })
+    );
+    await sp.getByTestId("btn-collapse-sidebar").click();
+
+    check("shell_no_console_errors", se.length === 0, JSON.stringify(se));
+    await sp.close();
+  }
+
+  {
+    const { p: mp, errors: me } = await newCheckedPage(context);
+    await mp.setViewportSize({ width: 390, height: 844 });
+    await mp.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
+    const pageWidth = await mp.evaluate(() => document.documentElement.scrollWidth);
+    check("shell_no_horizontal_overflow_390", pageWidth <= 390, String(pageWidth));
+
+    await mp.getByTestId("btn-menu").click();
+    await mp.waitForTimeout(150);
+    const drawerOpen = await mp.getByTestId("mobile-drawer").isVisible();
+    // A drawer rendered in the collapsed state would still "be visible" while
+    // showing icon-only rows, so assert the labels are actually there.
+    const drawerText = drawerOpen ? await mp.getByTestId("mobile-drawer").innerText() : "";
+    const drawerHasLabels = drawerText.includes("JSON Workbench") && drawerText.includes("Debug Report");
+    await mp.keyboard.press("Escape");
+    await mp.waitForTimeout(150);
+    const drawerClosed = !(await mp.getByTestId("mobile-drawer").isVisible().catch(() => false));
+    const focusReturnedTo = await mp.evaluate(() => document.activeElement?.getAttribute("data-testid"));
+    check(
+      "shell_mobile_drawer_opens",
+      drawerOpen && drawerHasLabels && drawerClosed && focusReturnedTo === "btn-menu" && me.length === 0,
+      JSON.stringify({ drawerOpen, drawerHasLabels, drawerClosed, focusReturnedTo, errors: me })
+    );
+    await mp.close();
+  }
 
   await browser.close();
 

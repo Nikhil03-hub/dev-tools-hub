@@ -1,6 +1,7 @@
 # Session handoff — V3 P1 progress
 
-Last commit: `b349b9d` (branch `v3`). Working tree clean.
+Last implementation commit: `b349b9d` (T-104). This handoff was committed immediately after as `8367ffc`.
+Git HEAD on branch `v3` is **`8367ffc`**, working tree clean. (Verified with `git rev-parse HEAD` at the start of the next session, not copied from prose.)
 Written by the implementer at the end of a session that started from `74958ec` (V3 plan pack only, no code cloned).
 
 ## Where the work stands
@@ -14,6 +15,7 @@ Written by the implementer at the end of a session that started from `74958ec` (
 | T-101 fix 2 (harden clipboard) | DONE | `0347593` | e2e 256/256, 11-case mutation proof |
 | T-103 registry + lazy + keep-alive | DONE | `aad188e` | check PASS, e2e **257/257** |
 | T-104 multi-file build + path URLs + SEO + CSP | DONE | `b349b9d` | check PASS, e2e **269/269** |
+| Session handoff (this file) | DONE | `8367ffc` | HEAD when T-105 starts |
 | **T-105 app shell** | **NOT STARTED** | — | next READY task |
 | T-106 home / T-107 palette v2 / T-108 tool frame / T-109 a11y | NOT STARTED | — | after T-105 |
 
