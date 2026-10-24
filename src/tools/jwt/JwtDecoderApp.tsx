@@ -1,9 +1,10 @@
-import { forwardRef, useImperativeHandle, useState, type DragEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState, type DragEvent } from "react";
 import { AlertCircle, CheckCircle2, Copy, Download, KeyRound, ShieldAlert, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import JsonEditor from "../../components/JsonEditor";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
+import { takeHandoff } from "../../shell/handoff";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { decodeJwt, buildSampleJwt, type JwtClaimInfo } from "../../lib/jwt";
@@ -23,7 +24,7 @@ const CLAIM_TONE_CLASS: Record<JwtClaimInfo["tone"], string> = {
   neutral: "border-border bg-raised text-ink-dim",
 };
 
-const JwtDecoderApp = forwardRef<ToolHandle, ToolProps>(function JwtDecoderApp(_props, ref) {
+const JwtDecoderApp = forwardRef<ToolHandle, ToolProps>(function JwtDecoderApp(props, ref) {
   const [token, setToken] = useState("");
   const [tab, setTab] = useState<SegmentTab>("payload");
   const [dragOver, setDragOver] = useState(false);
@@ -74,6 +75,14 @@ const JwtDecoderApp = forwardRef<ToolHandle, ToolProps>(function JwtDecoderApp(_
         ]
       : []),
   ];
+
+  // Apply a one-shot hand-off from the home page (see shell/handoff.ts).
+  useEffect(() => {
+    if (!props.isActive) return;
+    const handoff = takeHandoff("jwt-decoder");
+    if (!handoff) return;
+    setToken(handoff.text.replace(/^Bearers+/i, ""));
+  }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
 

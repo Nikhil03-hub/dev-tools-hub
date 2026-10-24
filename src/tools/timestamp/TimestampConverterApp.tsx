@@ -1,8 +1,9 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock, Copy, Download, Search, Trash2 } from "lucide-react";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
+import { takeHandoff } from "../../shell/handoff";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import {
@@ -38,7 +39,7 @@ function readNowAsEpochSeconds(): number {
   return Math.floor(PRESETS.find((p) => p.id === "now")!.getInstant().ms / 1000);
 }
 
-const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function TimestampConverterApp(_props, ref) {
+const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function TimestampConverterApp(props, ref) {
   const [mode, setMode] = useState<Mode>("fromEpoch");
   const [epochInput, setEpochInput] = useState("");
   const [epochUnitMode, setEpochUnitMode] = useState<EpochUnitMode>("auto");
@@ -161,6 +162,14 @@ const TimestampConverterApp = forwardRef<ToolHandle, ToolProps>(function Timesta
         ]
       : []),
   ];
+
+  // Apply a one-shot hand-off from the home page (see shell/handoff.ts).
+  useEffect(() => {
+    if (!props.isActive) return;
+    const handoff = takeHandoff("timestamp-converter");
+    if (!handoff) return;
+    setMode("fromEpoch"); setEpochInput(handoff.text.trim());
+  }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
 

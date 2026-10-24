@@ -3,6 +3,7 @@ import { Copy, Download, FileSearch, Sparkles, Trash2, UploadCloud } from "lucid
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
+import { takeHandoff } from "../../shell/handoff";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
@@ -174,6 +175,14 @@ const DebugReportApp = forwardRef<ToolHandle, ToolProps>(function DebugReportApp
         ]
       : []),
   ];
+
+  // Apply a one-shot hand-off from the home page (see shell/handoff.ts).
+  useEffect(() => {
+    if (!props.isActive) return;
+    const handoff = takeHandoff("debug-report");
+    if (!handoff) return;
+    setInput(handoff.text);
+  }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
 

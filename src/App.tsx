@@ -5,9 +5,13 @@ import Sidebar, { readCollapsedPref, writeCollapsedPref } from "./shell/Sidebar"
 import TopBar from "./shell/TopBar";
 import MobileDrawer from "./shell/MobileDrawer";
 import ToolHost, { type ToolHostHandle } from "./shell/ToolHost";
+import HomePage from "./shell/HomePage";
+import StaticPage from "./shell/StaticPage";
+import { setHandoff } from "./shell/handoff";
 import useMediaQuery from "./shell/useMediaQuery";
 import useRecentTools from "./shell/useRecentTools";
 import { TOOLS, ROUTE_TABLES, getTool } from "./registry/tools";
+import { STATIC_PAGES, type StaticPage as StaticPageData } from "./registry/pages";
 import { legacyRedirect, toolPath, type Route } from "./core/router/router";
 import { currentRoute, interceptLinkClick, navigate, onRouteChange } from "./shell/navigation";
 
@@ -42,17 +46,27 @@ export default function App() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const hostRef = useRef<ToolHostHandle>(null);
 
-  // Until T-106 adds the home page, home / static pages / 404 all render the
-  // default tool. The route is already tracked, so T-106 only changes this line.
+  // The ToolHost always keeps the last real tool mounted (hidden on other
+  // routes) so switching to the home page never discards a pasted input.
   const activeId = route.kind === "tool" ? route.id : DEFAULT_TOOL;
   const recent = useRecentTools(route.kind === "tool" ? route.id : null);
+  const staticPage: StaticPageData | null =
+    route.kind === "page"
+      ? STATIC_PAGES.find((p) => p.id === route.id) ?? null
+      : route.kind === "notfound"
+        ? STATIC_PAGES.find((p) => p.id === "notfound") ?? null
+        : null;
 
   useEffect(() => onRouteChange(() => setRoute(currentRoute(ROUTE_TABLES))), []);
 
   useEffect(() => {
-    const tool = route.kind === "tool" ? getTool(route.id) : undefined;
-    document.title = tool ? `${tool.title} · Dev Tools Hub` : HOME_TITLE;
-  }, [route]);
+    if (route.kind === "tool") {
+      const tool = getTool(route.id);
+      document.title = tool ? `${tool.title} · Dev Tools Hub` : HOME_TITLE;
+      return;
+    }
+    document.title = staticPage ? staticPage.title : HOME_TITLE;
+  }, [route, staticPage]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((v) => {
@@ -132,9 +146,28 @@ export default function App() {
           onOpenMenu={() => setDrawerOpen(true)}
           showMenu={!isDesktop}
         />
-        <div className="min-h-0 flex-1">
+        <div className={route.kind === "tool" ? "min-h-0 flex-1" : "hidden"}>
           <ToolHost ref={hostRef} activeId={activeId} />
         </div>
+
+        {route.kind !== "tool" && (
+          <main className="min-h-0 flex-1 overflow-y-auto">
+            {route.kind === "home" ? (
+              <HomePage
+                recent={recent}
+                onPick={(toolId, text, hint) => {
+                  const tool = getTool(toolId);
+                  if (!tool) return;
+                  setHandoff(toolId, text, hint);
+                  navigate(toolPath(tool.slug));
+                }}
+                onOpenTool={(id) => openTool(id)}
+              />
+            ) : staticPage ? (
+              <StaticPage page={staticPage} onOpenPalette={() => setPaletteOpen(true)} />
+            ) : null}
+          </main>
+        )}
       </div>
 
       {!isDesktop && drawerOpen && (

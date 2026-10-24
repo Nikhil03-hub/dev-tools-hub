@@ -3,6 +3,7 @@ import { Binary, Fingerprint, Hash as HashIcon, Link as LinkIcon } from "lucide-
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
+import { takeHandoff } from "../../shell/handoff";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
@@ -32,7 +33,7 @@ const SUB_MODES: { id: SubMode; label: string; icon: typeof Binary }[] = [
 // in this hub — all four stay mounted at once (CSS-hidden, not unmounted),
 // so switching between Base64/URL/UUID/Hash never discards what you typed
 // into another one.
-const GeneratorsApp = forwardRef<ToolHandle, ToolProps>(function GeneratorsApp(_props, ref) {
+const GeneratorsApp = forwardRef<ToolHandle, ToolProps>(function GeneratorsApp(props, ref) {
   const [subMode, setSubMode] = useState<SubMode>("base64");
 
   // ---- Base64 ----
@@ -209,6 +210,14 @@ const GeneratorsApp = forwardRef<ToolHandle, ToolProps>(function GeneratorsApp(_
             ];
 
   const commands: Command[] = [...subModeCommands, ...activeCommands];
+
+  // Apply a one-shot hand-off from the home page (see shell/handoff.ts).
+  useEffect(() => {
+    if (!props.isActive) return;
+    const handoff = takeHandoff("encode-generate");
+    if (!handoff) return;
+    if (handoff.hint === "base64") { setSubMode("base64"); setB64Direction("decode"); setB64Input(handoff.text); } else if (handoff.hint === "url") { setSubMode("url"); setUrlDirection("decode"); setUrlInput(handoff.text); }
+  }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
 

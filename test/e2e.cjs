@@ -70,7 +70,7 @@ async function main() {
   }
 
   // ---- Load ----
-  await page.goto(BASE, { waitUntil: "networkidle" });
+  await page.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
   await page.waitForTimeout(150);
   loadFinished = true;
 
@@ -1467,7 +1467,7 @@ async function main() {
   check("csp_connect_src_none", !!cspContent && cspContent.includes("connect-src 'none'"), String(cspContent));
   check("csp_default_src_none", !!cspContent && cspContent.includes("default-src 'none'"), String(cspContent));
   const probe = await context.newPage();
-  await probe.goto(BASE, { waitUntil: "networkidle" });
+  await probe.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
   const fetchResult = await probe.evaluate(async () => {
     try { await fetch("https://example.com/?probe=1"); return "sent"; } catch { return "blocked"; }
   });
@@ -1664,6 +1664,55 @@ async function main() {
       JSON.stringify({ drawerOpen, drawerHasLabels, drawerClosed, focusReturnedTo, errors: me })
     );
     await mp.close();
+  }
+
+  // ---- home & static pages (T-106) ----
+  {
+    const { p: hp, errors: he } = await newCheckedPage(context);
+    await hp.goto(BASE, { waitUntil: "networkidle" });
+    const homeH1 = await hp.getByRole("heading", { level: 1 }).innerText();
+    check("home_loads", /Developer tools that never see your data/.test(homeH1), homeH1.slice(0, 80));
+
+    // Take a token from the JWT tool's own sample — never a literal in this file
+    // (gitleaks would flag a real-looking JWT in source).
+    await hp.goto(BASE + "jwt-decoder/", { waitUntil: "networkidle" });
+    await hp.getByTestId("btn-jwt-sample").click();
+    await hp.waitForTimeout(250);
+    const token = await hp.getByTestId("jwt-input").locator("textarea").inputValue();
+
+    await hp.goto(BASE, { waitUntil: "networkidle" });
+    await hp.getByTestId("home-paste").fill(token);
+    await hp.waitForTimeout(400);
+    const chipVisible = await hp.getByTestId("home-suggest-jwt-decoder").isVisible();
+    check("home_detects_jwt", chipVisible && token.length > 20, JSON.stringify({ chipVisible, len: token.length }));
+
+    await hp.getByTestId("home-suggest-jwt-decoder").click();
+    await hp.waitForTimeout(400);
+    const handoffPath = await hp.evaluate(() => location.pathname);
+    const applied = await hp.getByTestId("jwt-input").locator("textarea").inputValue();
+    check("home_handoff_jwt", handoffPath === "/jwt-decoder/" && applied.startsWith(token.slice(0, 20)), JSON.stringify({ handoffPath, matched: applied.startsWith(token.slice(0, 20)) }));
+
+    const lsDump = await hp.evaluate(() => JSON.stringify(Object.fromEntries(Object.entries(localStorage))));
+    check("handoff_not_persisted", !lsDump.includes(token.slice(0, 20)), "localStorage holds no pasted text");
+
+    await hp.goto(BASE, { waitUntil: "networkidle" });
+    await hp.getByTestId("home-paste").fill(`curl https://api.example.com -H 'authorization: Bearer ${token}'`);
+    await hp.waitForTimeout(400);
+    check("home_secrets_warning", await hp.getByTestId("home-secrets-warning").isVisible(), "warning shown");
+
+    const cards = await hp.locator('[data-testid^="home-card-"]').count();
+    check("home_cards_link", cards === 6, String(cards));
+
+    await hp.goto(BASE + "privacy/", { waitUntil: "networkidle" });
+    const privacyH1 = await hp.getByRole("heading", { level: 1 }).innerText();
+    check("privacy_page_loads", /privacy/i.test(privacyH1), privacyH1.slice(0, 80));
+
+    await hp.goto(BASE + "no-such-tool/", { waitUntil: "networkidle" });
+    const notfoundH1 = await hp.getByRole("heading", { level: 1 }).innerText();
+    check("notfound_page_for_unknown_path", /page not found/i.test(notfoundH1), notfoundH1.slice(0, 80));
+
+    check("home_no_console_errors", he.length === 0, JSON.stringify(he));
+    await hp.close();
   }
 
   await browser.close();

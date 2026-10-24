@@ -10,6 +10,7 @@ import TsView from "./components/TsView";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
+import { takeHandoff } from "../../shell/handoff";
 import { parseJsonWithDiagnostics } from "./lib/jsonParse";
 import { formatJson, minifyJson, byteSize, countNodes, maxDepth } from "./lib/format";
 import { replaceEditorContent } from "../../lib/cmUtil";
@@ -35,7 +36,7 @@ const PLACEHOLDER = 'Paste JSON here, or drop a .json file…\n\n{\n  "hello": "
 // still owns every JSON-specific action and reports its command list up
 // through `ref` (see ToolHandle) instead of rendering its own palette.
 const JsonWorkbenchApp = forwardRef<ToolHandle, ToolProps>(function JsonWorkbenchApp(
-  { isActive },
+  props,
   ref
 ) {
   const [source, setSource] = useState("");
@@ -106,7 +107,7 @@ const JsonWorkbenchApp = forwardRef<ToolHandle, ToolProps>(function JsonWorkbenc
   // content the user can't currently see.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!isActive) return;
+      if (!props.isActive) return;
       const meta = e.metaKey || e.ctrlKey;
       if (!meta || !e.shiftKey) return;
       if (e.key.toLowerCase() === "f") {
@@ -120,7 +121,7 @@ const JsonWorkbenchApp = forwardRef<ToolHandle, ToolProps>(function JsonWorkbenc
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, isActive]);
+  }, [source, props.isActive]);
 
   const commands: Command[] = [
     { id: "format", label: "Format JSON", group: "JSON Workbench", shortcut: "⌘⇧F", action: format },
@@ -134,6 +135,14 @@ const JsonWorkbenchApp = forwardRef<ToolHandle, ToolProps>(function JsonWorkbenc
     { id: "schema", label: "Go to Schema view", group: "JSON Workbench", action: () => setActiveTab("schema") },
     { id: "ts", label: "Go to TypeScript view", group: "JSON Workbench", action: () => setActiveTab("ts") },
   ];
+
+  // Apply a one-shot hand-off from the home page (see shell/handoff.ts).
+  useEffect(() => {
+    if (!props.isActive) return;
+    const handoff = takeHandoff("json-workbench");
+    if (!handoff) return;
+    setMainContent(handoff.text);
+  }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
 

@@ -1,8 +1,9 @@
-import { forwardRef, useImperativeHandle, useRef, useState, type DragEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type DragEvent } from "react";
 import { AlertCircle, CheckCircle2, Search, Sparkles, Trash2, UploadCloud } from "lucide-react";
 import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
+import { takeHandoff } from "../../shell/handoff";
 import { copyText, downloadText } from "../../lib/clipboard";
 import { toast } from "../../lib/toastBus";
 import { applyReplacement, buildSample, DEFAULT_FLAGS, runRegex, type UiFlags } from "../../lib/regex";
@@ -28,7 +29,7 @@ const TABS: { id: OutputTab; label: string }[] = [
 // regex tester shares; it isn't addressed here since fixing it properly
 // needs a Web Worker with a hard timeout, which is real added
 // architecture, not something to bolt on silently for V1.
-const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp(_props, ref) {
+const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp(props, ref) {
   const [pattern, setPattern] = useState("");
   const [flags, setFlags] = useState<UiFlags>(DEFAULT_FLAGS);
   const [text, setText] = useState("");
@@ -119,6 +120,16 @@ const RegexTesterApp = forwardRef<ToolHandle, ToolProps>(function RegexTesterApp
       ? [{ id: "regex-copy-replacement", label: "Copy replaced text", group: "Regex Tester", action: copyReplacement }]
       : []),
   ];
+
+  // Apply a one-shot hand-off from the home page (see shell/handoff.ts).
+  useEffect(() => {
+    if (!props.isActive) return;
+    const handoff = takeHandoff("regex-tester");
+    if (!handoff) return;
+    const m = /^\/([\s\S]+)\/([a-z]*)$/.exec(handoff.text);
+    if (m) setPattern(m[1]);
+    else setText(handoff.text);
+  }, [props.isActive]);
 
   useImperativeHandle(ref, () => ({ getCommands: () => commands }), [commands]);
 
