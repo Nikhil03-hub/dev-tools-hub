@@ -57,10 +57,14 @@ export default function JsonEditor({
     const base = [
       language === "json" ? jsonLang() : javascript({ typescript: true }),
       EditorView.lineWrapping,
+      // The editor's real input is CodeMirror's contenteditable, so the name
+      // belongs there. On the wrapper div it was both prohibited (a plain div
+      // accepts no aria-label) and invisible to the textbox it described.
+      EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
     ];
     if (lint && language === "json") base.push(jsonLinter);
     return base;
-  }, [language, lint]);
+  }, [language, lint, ariaLabel]);
 
   function handleDrop(e: DragEvent<HTMLDivElement>) {
     if (!allowDrop || !onChange) return;
@@ -99,7 +103,6 @@ export default function JsonEditor({
           closeBrackets: !readOnly,
         }}
         extensions={extensions}
-        aria-label={ariaLabel}
         style={{ height: "100%" }}
         className="h-full [&_.cm-editor]:h-full"
         onCreateEditor={onReady}

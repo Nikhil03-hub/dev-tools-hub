@@ -52,6 +52,9 @@ export const cmDarkTheme = EditorView.theme({
     backgroundColor: "rgb(var(--c-raised))",
   },
   ".cm-scroller": { overflow: "auto" },
+  // CodeMirror's default placeholder is #888, which fails 4.5:1 on light
+  // surfaces (measured 3.3:1). Use the same faint token as the rest of the UI.
+  ".cm-placeholder": { color: "rgb(var(--c-ink-faint))" },
   "&.cm-editor.cm-focused": { outline: "none" },
 });
 

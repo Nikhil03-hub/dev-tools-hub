@@ -20,7 +20,7 @@
   --c-canvas: 11 11 15; --c-surface: 18 18 24; --c-raised: 26 26 34;
   --c-border: 42 42 53; --c-border-subtle: 31 31 40;
   --c-ink: 237 237 242; --c-ink-dim: 161 161 176; --c-ink-faint: 130 130 143;
-  --c-accent: 139 124 248; --c-accent-hover: 160 148 250; --c-accent-strong: 99 82 232;
+  --c-accent: 150 138 250; --c-accent-hover: 168 158 252; --c-accent-strong: 99 82 232;
   --c-ok: 52 211 153; --c-warn: 251 191 36; --c-err: 248 113 113; --c-info: 96 165 250;
   --c-soft-alpha: 0.16; --c-scroll: 56 56 74; --c-on-accent: 255 255 255;
   --c-syn-prop: 125 211 252; --c-syn-string: 163 230 53; --c-syn-number: 251 191 36;
@@ -36,7 +36,7 @@
     --c-canvas: 11 11 15; --c-surface: 18 18 24; --c-raised: 26 26 34;
     --c-border: 42 42 53; --c-border-subtle: 31 31 40;
     --c-ink: 237 237 242; --c-ink-dim: 161 161 176; --c-ink-faint: 130 130 143;
-    --c-accent: 139 124 248; --c-accent-hover: 160 148 250; --c-accent-strong: 99 82 232;
+    --c-accent: 150 138 250; --c-accent-hover: 168 158 252; --c-accent-strong: 99 82 232;
     --c-ok: 52 211 153; --c-warn: 251 191 36; --c-err: 248 113 113; --c-info: 96 165 250;
     --c-soft-alpha: 0.16; --c-scroll: 56 56 74; --c-on-accent: 255 255 255;
     --c-syn-prop: 125 211 252; --c-syn-string: 163 230 53; --c-syn-number: 251 191 36;

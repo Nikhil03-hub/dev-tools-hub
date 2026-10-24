@@ -180,7 +180,6 @@ export default function Sidebar({
           className={`focus-ring flex h-8 w-full items-center rounded-md text-[12px] text-ink-dim transition-colors hover:bg-raised hover:text-ink ${
             collapsed ? "justify-center px-0" : "gap-2 px-2"
           }`}
-          aria-label="Open command palette"
           data-testid="btn-sidebar-palette"
         >
           <span className="shrink-0">
@@ -193,12 +192,11 @@ export default function Sidebar({
             type="button"
             onClick={onToggleCollapsed}
             className={`focus-ring mt-1 flex h-8 w-full items-center rounded-md text-[12px] text-ink-faint transition-colors hover:bg-raised hover:text-ink ${
-              collapsed ? "justify-center px-0" : "justify-between px-2"
+              collapsed ? "justify-center px-0" : "justify-end px-2"
             }`}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             data-testid="btn-collapse-sidebar"
           >
-            {!collapsed && <span className="text-[11px]">v3.0 · MIT</span>}
             {collapsed ? (
               <PanelLeftOpen className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
             ) : (
@@ -206,7 +204,7 @@ export default function Sidebar({
             )}
           </button>
         )}
-        {!onToggleCollapsed && <p className="px-2 pt-1 text-[11px] text-ink-faint">v3.0 · MIT</p>}
+        {!collapsed && <p className="px-2 pb-0.5 pt-1 text-[11px] text-ink-faint">v3.0 · MIT</p>}
       </div>
     </aside>
   );

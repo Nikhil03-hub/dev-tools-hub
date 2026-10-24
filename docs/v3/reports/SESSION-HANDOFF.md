@@ -19,7 +19,9 @@ Written by the implementer at the end of a session that started from `74958ec` (
 | T-105 app shell (sidebar, top bar, drawer) | DONE | `2b2bb2c` | check PASS, e2e **277/277** |
 | T-106 home page + paste detection + static pages | DONE | `a193aa3` | check PASS, e2e **286/286** |
 | T-107 command palette v2 | DONE | (see git log) | check PASS, e2e **290/290** |
-| **T-108 tool page frame + shared components** | **NOT STARTED** | — | next READY task |
+| T-108 tool page frame + shared components | DONE | `601ab4c` | check PASS, e2e **303/303** |
+| T-109 accessibility gate + CP1 summary | DONE | see git log | check PASS, e2e **319/319** |
+| **CP1** | **AWAITING OPUS REVIEW** | — | reviewer sets PASSED |
 | T-107 palette v2 / T-108 tool frame / T-109 a11y | NOT STARTED | — | after T-106 |
 
 `npm run check` = typecheck, boundaries (13 pure files), registry (6 tools), unit 15/15, verify_lib ALL PASS, verify_debugkit 147/147, build with postbuild pages + CSP + budgets, `check-budgets: OK`.

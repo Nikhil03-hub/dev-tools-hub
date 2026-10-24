@@ -17,7 +17,7 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 | 6 | T-106 | Home page with "Paste anything" detection | tasks/P1_foundation.md | T-105 | DONE |
 | 7 | T-107 | Command palette v2 | tasks/P1_foundation.md | T-106 | DONE |
 | 8 | T-108 | Tool page frame + shared components | tasks/P1_foundation.md | T-107 | DONE |
-| 9 | T-109 | Accessibility gate + CP1 summary | tasks/P1_foundation.md | T-108 | READY |
+| 9 | T-109 | Accessibility gate + CP1 summary | tasks/P1_foundation.md | T-108 | DONE |
 | 10 | **CP1** | **CHECKPOINT: STOP. Owner pushes `v3`, reviewer reviews P1** | REVIEW_PROTOCOL.md | T-109 | PENDING |
 | 11 | T-201 | YAML ⇄ JSON | tasks/P2_tools.md | CP1 | READY |
 | 12 | T-202 | Text diff | tasks/P2_tools.md | T-201 | READY |

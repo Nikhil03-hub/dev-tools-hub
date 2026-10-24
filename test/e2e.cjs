@@ -1837,6 +1837,33 @@ async function main() {
     await mp2.close();
   }
 
+  // ---- accessibility (T-109) ----
+  {
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    const PAGES = ["", "privacy/", "json-formatter/", "jwt-decoder/", "regex-tester/", "timestamp-converter/", "encode-generate/", "debug-report/"];
+    for (const slug of PAGES) {
+      for (const theme of ["light", "dark"]) {
+        const { p: ap } = await newCheckedPage(context);
+        await ap.goto(BASE + slug, { waitUntil: "networkidle" });
+        // localStorage then reload: the theme must be applied before axe reads
+        // computed colours. addScriptTag would be blocked by script-src 'self'.
+        await ap.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+        await ap.reload({ waitUntil: "networkidle" });
+        await ap.waitForTimeout(250);
+        await ap.evaluate(axeSource);
+        const violations = await ap.evaluate(async () => {
+          const result = await window.axe.run(document, { resultTypes: ["violations"] });
+          return result.violations
+            .filter((v) => v.impact === "serious" || v.impact === "critical")
+            .map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, target: v.nodes[0] && v.nodes[0].target }));
+        });
+        const name = slug === "" ? "home" : slug.replace(/\/$/, "");
+        check(`a11y_${name}_${theme}`, violations.length === 0, JSON.stringify(violations));
+        await ap.close();
+      }
+    }
+  }
+
   await browser.close();
 
   console.log("\n===== RESULTS =====");

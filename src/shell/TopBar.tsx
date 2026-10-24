@@ -45,10 +45,11 @@ export default function TopBar({
         data-testid="btn-open-palette"
         onClick={onOpenPalette}
         className="focus-ring flex h-8 items-center gap-2 rounded-full border border-border bg-raised px-3 text-xs text-ink-dim transition-colors hover:border-accent/50 hover:text-ink"
-        aria-label="Search tools"
       >
         <Search className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
-        <span className="hidden sm:inline">Search tools…</span>
+        {/* sr-only on mobile keeps a name for the icon-only button without
+            naming it differently from the visible text on desktop (WCAG 2.5.3). */}
+        <span className="sr-only sm:not-sr-only">Search tools…</span>
         <span className="hidden sm:inline-flex">
           <Kbd keys={["mod", "K"]} />
         </span>
