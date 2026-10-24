@@ -74,8 +74,8 @@ async function main() {
   await page.waitForTimeout(150);
   loadFinished = true;
 
-  check("title_is_dev_tools_hub", (await page.title()) === "Dev Tools Hub", await page.title());
-  check("initial_requests_only_document", allRequests.length <= 1, JSON.stringify(allRequests));
+  check("title_is_dev_tools_hub", /Dev Tools Hub/.test(await page.title()), await page.title());
+  check("initial_requests_only_document", allRequests.filter((u) => !u.startsWith(BASE + "assets/")).length <= 1, JSON.stringify(allRequests));
 
   await page.screenshot({ path: `${SHOT_DIR}/01-empty-desktop.png` });
 
@@ -1251,7 +1251,7 @@ async function main() {
   check("debug_hash_deeplink_opens_tab", await deep.getByTestId("debug-input").isVisible() && !(await deep.getByTestId("json-tree").isVisible().catch(() => false)));
   await deep.close();
   await page.getByTestId("tool-tab-jwt").click();
-  check("hash_updates_on_switch", (await page.evaluate(() => location.hash)) === "#jwt");
+  check("hash_updates_on_switch", (await page.evaluate(() => location.pathname)) === "/jwt-decoder/");
   await page.getByTestId("tool-tab-debug").click();
   await page.waitForTimeout(100);
   check("debug_empty_state_shown", await page.getByTestId("debug-empty").isVisible());
@@ -1514,6 +1514,63 @@ async function main() {
   const backToSystem = await clickThemeTo("system");
   check("theme_no_console_errors", errors.length === 0, JSON.stringify({ errors, backToSystem }));
   await p.close();
+
+  // ---- paths & pages (T-104) ----
+  const TOOL_ROOTS = [
+    ["json-formatter", "main-editor"],
+    ["jwt-decoder", "jwt-input"],
+    ["regex-tester", "regex-pattern-input"],
+    ["timestamp-converter", "timestamp-epoch-input"],
+    ["encode-generate", "generators-submode-base64"],
+    ["debug-report", "debug-input"],
+  ];
+  for (const [slug, rootId] of TOOL_ROOTS) {
+    const { p: tp, errors: te } = await newCheckedPage(context);
+    await tp.goto(BASE + slug + "/", { waitUntil: "networkidle" });
+    const visible = await tp.getByTestId(rootId).isVisible().catch(() => false);
+    check(`path_${slug}_loads`, visible && te.length === 0, JSON.stringify({ visible, errors: te }));
+    await tp.close();
+  }
+
+  {
+    const { p: hp } = await newCheckedPage(context);
+    await hp.goto(BASE + "#jwt", { waitUntil: "networkidle" });
+    const path = await hp.evaluate(() => location.pathname);
+    check("legacy_hash_redirects", path === "/jwt-decoder/", path);
+    await hp.close();
+  }
+
+  // Files on disk: what a crawler gets without running any JavaScript.
+  const fsRead = (rel) => require("fs").readFileSync(require("path").join(process.cwd(), "dist", rel), "utf8");
+  check("prerender_has_h1", fsRead("jwt-decoder/index.html").includes("<h1>JWT Decoder</h1>"));
+
+  const allHtml = [];
+  (function walk(rel) {
+    for (const name of require("fs").readdirSync(require("path").join(process.cwd(), "dist", rel))) {
+      const childRel = rel ? `${rel}/${name}` : name;
+      const full = require("path").join(process.cwd(), "dist", childRel);
+      if (require("fs").statSync(full).isDirectory()) walk(childRel);
+      else if (name.endsWith(".html")) allHtml.push(childRel);
+    }
+  })("");
+  const missingCsp = allHtml.filter((f) => !/^waitlist/.test(f) && !fsRead(f).includes("connect-src 'none'"));
+  check("csp_meta_on_every_page", missingCsp.length === 0, JSON.stringify(missingCsp));
+
+  // Netlify merges every matching rule, so two CSPs would both apply. The header
+  // must be attached per page and never to the "/*" block. Split into blocks
+  // rather than regex across them: "\s+" matches blank lines, which would let a
+  // later block's CSP look like part of the wildcard block.
+  const headers = fsRead("_headers");
+  const headerBlocks = headers.split(/\r?\n\r?\n/);
+  const wildcardBlock = headerBlocks.find((b) => b.trimStart().startsWith("/*")) ?? "";
+  const jwtBlock = headerBlocks.find((b) => /^\/jwt-decoder\/\s*$/m.test(b)) ?? "";
+  check(
+    "headers_csp_per_page",
+    /Content-Security-Policy:/.test(jwtBlock) && !/Content-Security-Policy:/.test(wildcardBlock),
+    JSON.stringify({ jwtBlockHasCsp: /Content-Security-Policy:/.test(jwtBlock), wildcardHasCsp: /Content-Security-Policy:/.test(wildcardBlock) })
+  );
+  check("sitemap_lists_tools", fsRead("sitemap.xml").includes("/debug-report/"));
+  check("notfound_page_exists", fsRead("404.html").includes("Page not found"));
 
   await browser.close();
 

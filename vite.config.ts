@@ -1,17 +1,23 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { viteSingleFile } from "vite-plugin-singlefile";
-
-// Fully static, client-side-only build. No backend, no server functions.
-// vite-plugin-singlefile inlines all JS/CSS into index.html so the build
-// output is one portable, self-contained file (needed for artifact hosting
-// and for the "nothing leaves your browser" story to be easy to verify).
+// Multi-file static build (V3): hashed, cacheable assets under dist/assets/,
+// one lazy chunk per tool. No backend. See docs/v3/ARCHITECTURE.md §6.
 export default defineConfig({
-  plugins: [react(), viteSingleFile()],
+  plugins: [react()],
   build: {
     target: "es2020",
-    cssCodeSplit: false,
-    assetsInlineLimit: 100000000,
-    chunkSizeWarningLimit: 4000,
+    assetsInlineLimit: 0,
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        // Editors are shared by several lazily loaded tools. Grouping them keeps
+        // the duplicate out of every tool chunk and gives them a stable, cacheable
+        // name that scripts/check-budgets.mjs recognises as a shared chunk.
+        manualChunks(id) {
+          if (/[\\/]node_modules[\\/](@codemirror|@lezer|@uiw)[\\/]/.test(id)) return "codemirror";
+          return undefined;
+        },
+      },
+    },
   },
 });

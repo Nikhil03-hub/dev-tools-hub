@@ -42,3 +42,14 @@
     @apply inline-flex items-center justify-center rounded border border-border bg-raised px-1.5 py-0.5 text-[11px] font-mono text-ink-dim shadow-none;
   }
 }
+
+/* Prerendered, crawlable content. It is what a search engine and a no-JS
+   visitor see before React mounts, and it is styled without Tailwind because
+   it is generated outside the component tree. */
+.prerender { max-width: 760px; margin: 0 auto; padding: 48px 24px; color: rgb(var(--c-ink)); font-size: 15px; line-height: 1.6; }
+.prerender h1 { font-size: 28px; line-height: 1.25; font-weight: 650; margin: 0 0 12px; }
+.prerender h2 { font-size: 17px; font-weight: 600; margin: 28px 0 8px; }
+.prerender h3 { font-size: 15px; font-weight: 600; margin: 16px 0 4px; }
+.prerender p, .prerender li { color: rgb(var(--c-ink-dim)); }
+.prerender a { color: rgb(var(--c-accent)); }
+.prerender-crumb { font-size: 13px; }

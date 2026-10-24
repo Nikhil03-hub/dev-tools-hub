@@ -3,7 +3,7 @@
 ## What this project promises
 
 - Every tool runs in your browser. There is no backend that receives what you paste.
-- The app page ships a Content-Security-Policy with `connect-src 'none'`, so the browser itself refuses any background request (fetch, XHR, beacons, WebSockets) from the page. You can verify this in DevTools → Network.
+- After the page loads, the only requests are for this site's own code files. No request ever carries what you paste. The browser blocks connections to any server (`connect-src 'none'`).
 - If anonymous usage counters are enabled for a deployment, the only outbound requests are 1×1 image requests to GoatCounter carrying a fixed event name (for example `debug-analyze`). Your input, files, reports, headers, tokens or logs are never sent, stored or logged.
 - Debug Report's redaction covers known secret formats and fields named like secrets. It can miss unusual secrets, so always review a report before sharing it.
 

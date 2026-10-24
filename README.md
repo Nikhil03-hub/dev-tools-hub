@@ -13,11 +13,13 @@ Dev Tools Hub — privacy-first developer tools that run entirely in the browser
 
 ## Privacy
 
-There is no application backend. Every tool runs in your browser. The page's Content-Security-Policy includes `connect-src 'none'`, so the browser itself refuses arbitrary background requests such as fetch, XHR, beacons or WebSockets.
+There is no application backend. Every tool runs in your browser.
+
+After the page loads, the only requests are for this site's own code files. No request ever carries what you paste. The browser blocks connections to any server (connect-src 'none').
 
 The hosted deployment may enable anonymous usage counters through GoatCounter. These are limited to fixed event names sent as 1×1 image requests; they do not receive your input, files, reports, headers, tokens or logs.
 
-To verify the application's network behavior, use a counters-off build and open DevTools → Network. The application should make no requests after load.
+To verify the application's network behavior, use a counters-off build and open DevTools → Network. After load, the only requests should be this site's own files under `/assets/`.
 
 ## Build
 
