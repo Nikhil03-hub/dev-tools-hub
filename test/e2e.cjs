@@ -1742,6 +1742,101 @@ async function main() {
     await pp.close();
   }
 
+  // ---- tool layout & shared components (T-108) ----
+  {
+    const TOOL_PAGES = [
+      ["json-formatter", "JSON Formatter, Validator and Diff"],
+      ["jwt-decoder", "JWT Decoder"],
+      ["regex-tester", "Regex Tester"],
+      ["timestamp-converter", "Unix Timestamp Converter"],
+      ["encode-generate", "Base64, URL, UUID and Hash Tools"],
+      ["debug-report", "Debug Report: diagnose and redact requests"],
+    ];
+    for (const [slug, title] of TOOL_PAGES) {
+      const { p: lp, errors: le } = await newCheckedPage(context);
+      await lp.goto(BASE + slug + "/", { waitUntil: "networkidle" });
+      const h1 = await lp.getByRole("heading", { level: 1 }).innerText();
+      check(`toollayout_h1_${slug}`, h1 === title && le.length === 0, JSON.stringify({ h1, expected: title }));
+      await lp.close();
+    }
+
+    const { p: dp, errors: de } = await newCheckedPage(context);
+    await dp.goto(BASE + "jwt-decoder/", { waitUntil: "networkidle" });
+
+    await dp.getByRole("heading", { name: "How to use" }).scrollIntoViewIfNeeded();
+    const docsVisible = await dp.getByRole("heading", { name: "How to use" }).isVisible();
+    const relatedVisible = await dp.getByTestId("related-debug-report").isVisible().catch(() => false);
+    check("toollayout_docs_block", docsVisible && relatedVisible, JSON.stringify({ docsVisible, relatedVisible }));
+
+    // The app shell is a fixed-height grid, so the scroll container is the main
+    // region, not window. Find the nearest scrollable ancestor of the workspace.
+    const scrollInfo = await dp.evaluate(() => {
+      let sc = document.querySelector('[data-testid="tool-workspace"]')?.parentElement ?? null;
+      while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+      if (!sc) return { found: false };
+      const before = sc.scrollTop;
+      sc.scrollTop = sc.scrollHeight;
+      const after = sc.scrollTop;
+      sc.scrollTop = before;
+      return { found: true, after, scrollHeight: sc.scrollHeight, clientHeight: sc.clientHeight };
+    });
+    check("toollayout_page_scrolls", scrollInfo.found === true && scrollInfo.scrollHeight > scrollInfo.clientHeight && scrollInfo.after > 0, JSON.stringify(scrollInfo));
+
+    await dp.getByTestId("related-debug-report").click();
+    await dp.waitForTimeout(400);
+    const relatedPath = await dp.evaluate(() => location.pathname);
+    check("toollayout_related_links_navigate", relatedPath === "/debug-report/", relatedPath);
+
+    // Clipboard correctness: success is announced only after it happens, and a
+    // forced failure (rejected promise + failing execCommand) must say so. Both
+    // clipboard paths are broken deliberately; nothing is read back here.
+    await dp.getByTestId("btn-debug-sample").click();
+    await dp.waitForTimeout(200);
+    const sampleItem = dp.getByRole("menuitem").first();
+    if (await sampleItem.isVisible().catch(() => false)) await sampleItem.click();
+    await dp.waitForTimeout(800);
+    await dp.getByTestId("debug-tab-sanitized").click();
+    await dp.waitForTimeout(300);
+
+    await dp.getByTestId("btn-debug-copy-sanitized").click();
+    await dp.waitForTimeout(300);
+    const okToast = await dp.getByText("Copied", { exact: true }).isVisible().catch(() => false);
+    check("copy_success_reports_copied", okToast, String(okToast));
+
+    await dp.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new Error("denied")) },
+      });
+      document.execCommand = () => false;
+    });
+    await dp.getByTestId("btn-debug-copy-sanitized").click();
+    await dp.waitForTimeout(400);
+    const failToast = await dp.getByText("Copy failed — select and copy manually", { exact: true }).isVisible().catch(() => false);
+    check("copy_failure_reports_failure", failToast, String(failToast));
+
+    check("toollayout_no_console_errors", de.length === 0, JSON.stringify(de));
+    await dp.close();
+  }
+
+  {
+    // AC4 on a narrow screen: the page scrolls and never overflows sideways.
+    const { p: mp2 } = await newCheckedPage(context);
+    await mp2.setViewportSize({ width: 390, height: 844 });
+    await mp2.goto(BASE + "debug-report/", { waitUntil: "networkidle" });
+    const info = await mp2.evaluate(() => {
+      let sc = document.querySelector('[data-testid="tool-workspace"]')?.parentElement ?? null;
+      while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+      const before = sc ? sc.scrollTop : 0;
+      if (sc) sc.scrollTop = sc.scrollHeight;
+      const after = sc ? sc.scrollTop : 0;
+      if (sc) sc.scrollTop = before;
+      return { width: document.documentElement.scrollWidth, found: !!sc, after, scrollHeight: sc ? sc.scrollHeight : 0, clientHeight: sc ? sc.clientHeight : 0 };
+    });
+    check("toollayout_mobile_scrolls_no_overflow", info.width <= 390 && info.found && info.scrollHeight > info.clientHeight && info.after > 0, JSON.stringify(info));
+    await mp2.close();
+  }
+
   await browser.close();
 
   console.log("\n===== RESULTS =====");

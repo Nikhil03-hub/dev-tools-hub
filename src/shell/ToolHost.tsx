@@ -1,20 +1,10 @@
-import {
-  Component,
-  Suspense,
-  createRef,
-  forwardRef,
-  lazy,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-  type LazyExoticComponent,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import { Suspense, createRef, forwardRef, lazy, useEffect, useImperativeHandle, useRef, useState, type LazyExoticComponent, type RefObject } from "react";
 import { getTool } from "../registry/tools";
 import type { ToolComponent } from "../registry/types";
 import type { ToolHandle } from "../lib/toolHandle";
+import ToolLayout from "./ToolLayout";
+import ErrorBoundary from "../components/ErrorBoundary";
+import ToolSkeleton from "../components/ToolSkeleton";
 
 // Keep-alive: a tool stays mounted after its first visit, so switching tools
 // never discards a half-pasted input. The cap bounds memory if the registry
@@ -32,36 +22,6 @@ function lazyTool(id: string, load: () => Promise<{ default: ToolComponent }>): 
   const made = lazy(load);
   lazyCache.set(id, made);
   return made;
-}
-
-function ToolSkeleton() {
-  return (
-    <div className="grid h-full gap-3 p-3 md:grid-cols-2" aria-hidden="true">
-      <div className="animate-pulse rounded-[10px] border border-border-subtle bg-surface" />
-      <div className="animate-pulse rounded-[10px] border border-border-subtle bg-surface" />
-    </div>
-  );
-}
-
-// Minimal local boundary. T-108 replaces this with the shared ErrorBoundary
-// that offers a "Reset tool" action.
-class ToolErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  render() {
-    if (this.state.failed) {
-      return (
-        <div role="alert" className="flex h-full items-center justify-center p-6 text-center text-sm text-err">
-          This tool hit an error. Your input is still here.
-        </div>
-      );
-    }
-    return this.props.children;
-  }
 }
 
 export interface ToolHostHandle {
@@ -109,12 +69,14 @@ const ToolHost = forwardRef<ToolHostHandle, { activeId: string }>(function ToolH
         const Lazy = lazyTool(id, tool.load);
 
         return (
-          <div key={id} className={id === activeId ? "h-full" : "hidden"}>
-            <ToolErrorBoundary key={id}>
-              <Suspense fallback={<ToolSkeleton />}>
-                <Lazy ref={handle} isActive={id === activeId} />
-              </Suspense>
-            </ToolErrorBoundary>
+          <div key={id} className={id === activeId ? "" : "hidden"} data-tool-page={id}>
+            <ErrorBoundary>
+              <ToolLayout tool={tool}>
+                <Suspense fallback={<ToolSkeleton />}>
+                  <Lazy ref={handle} isActive={id === activeId} />
+                </Suspense>
+              </ToolLayout>
+            </ErrorBoundary>
           </div>
         );
       })}

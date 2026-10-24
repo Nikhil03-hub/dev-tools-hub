@@ -171,13 +171,16 @@ export default function App() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-col">
+      {/* min-h-0 is required: without it this flex column grows past the 100vh
+          grid row, and the shell's overflow-hidden then clips the docs block so
+          it cannot be scrolled to at all. */}
+      <div className="flex min-h-0 min-w-0 flex-col">
         <TopBar
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenMenu={() => setDrawerOpen(true)}
           showMenu={!isDesktop}
         />
-        <div className={route.kind === "tool" ? "min-h-0 flex-1" : "hidden"}>
+        <div className={route.kind === "tool" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"}>
           <ToolHost ref={hostRef} activeId={activeId} />
         </div>
 

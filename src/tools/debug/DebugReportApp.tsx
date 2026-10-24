@@ -4,7 +4,8 @@ import type { Command } from "../../components/CommandPalette";
 import type { ToolHandle } from "../../lib/toolHandle";
 import type { ToolProps } from "../../registry/types";
 import { takeHandoff } from "../../shell/handoff";
-import { copyText, downloadText } from "../../lib/clipboard";
+import { downloadText } from "../../lib/clipboard";
+import { copyAndNotify } from "../../components/CopyButton";
 import { toast } from "../../lib/toastBus";
 import { useDebouncedValue } from "../../lib/useDebouncedValue";
 import { analyze, renderReport, type ReportFormat } from "../../lib/debugkit/report";
@@ -117,8 +118,7 @@ const DebugReportApp = forwardRef<ToolHandle, ToolProps>(function DebugReportApp
 
   async function copySanitized() {
     if (!report) return;
-    await copyText(report.sanitized);
-    toast("Copied sanitized input");
+    await copyAndNotify(report.sanitized);
   }
 
   function downloadSanitized() {
@@ -133,8 +133,7 @@ const DebugReportApp = forwardRef<ToolHandle, ToolProps>(function DebugReportApp
 
   async function copyReport() {
     if (!report) return;
-    await copyText(shareText);
-    toast("Copied — read it once before you send it");
+    await copyAndNotify(shareText, "Copied — read it once before you send it");
     track(`debug-copy-${format}` as MetricEvent);
   }
 
@@ -147,8 +146,7 @@ const DebugReportApp = forwardRef<ToolHandle, ToolProps>(function DebugReportApp
 
   async function copyAiReport() {
     if (!report) return;
-    await copyText(renderReport(report, "ai"));
-    toast("Copied — read it once before you send it");
+    await copyAndNotify(renderReport(report, "ai"), "Copied — read it once before you send it");
     track("debug-copy-ai");
   }
 
