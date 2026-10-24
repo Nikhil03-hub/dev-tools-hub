@@ -1,7 +1,7 @@
 # Session handoff — V3 P1 progress
 
-Last implementation commit: `b349b9d` (T-104). This handoff was committed immediately after as `8367ffc`.
-Git HEAD on branch `v3` is **`8367ffc`**, working tree clean. (Verified with `git rev-parse HEAD` at the start of the next session, not copied from prose.)
+Last implementation commit: `a193aa3` (T-106).
+Git HEAD on branch `v3` was **`8933bd3`** when T-106 started; verify the real HEAD with `git rev-parse HEAD` rather than trusting this line.
 Written by the implementer at the end of a session that started from `74958ec` (V3 plan pack only, no code cloned).
 
 ## Where the work stands
@@ -17,7 +17,8 @@ Written by the implementer at the end of a session that started from `74958ec` (
 | T-104 multi-file build + path URLs + SEO + CSP | DONE | `b349b9d` | check PASS, e2e **269/269** |
 | Session handoff (first) | DONE | `8367ffc` | — |
 | T-105 app shell (sidebar, top bar, drawer) | DONE | `2b2bb2c` | check PASS, e2e **277/277** |
-| **T-106 home page + paste detection** | **NOT STARTED** | — | next READY task |
+| T-106 home page + paste detection + static pages | DONE | `a193aa3` | check PASS, e2e **286/286** |
+| **T-107 command palette v2** | **NOT STARTED** | — | next READY task |
 | T-107 palette v2 / T-108 tool frame / T-109 a11y | NOT STARTED | — | after T-106 |
 
 `npm run check` = typecheck, boundaries (13 pure files), registry (6 tools), unit 15/15, verify_lib ALL PASS, verify_debugkit 147/147, build with postbuild pages + CSP + budgets, `check-budgets: OK`.
@@ -54,7 +55,7 @@ Full detail in `docs/v3/reports/A11Y-focus-indicator-finding.md`.
 
 ## Next steps, in order
 
-1. T-106 (home page + "Paste anything" detection). Read `docs/v3/tasks/P1_foundation.md` §T-106. It adds `src/core/detect/*`, `HomePage`, `handoff.ts`, `StaticPage`, and switches the `activeId` fallback in `src/App.tsx` from `DEFAULT_TOOL` to a real route switch. That single line is commented in `App.tsx` for exactly this change. It also fixes the currently inert `/privacy/` link in `PrivacyPopover`.
+1. T-107 (command palette v2: fuzzy search, recents, actions). Spec: `docs/v3/tasks/P1_foundation.md` §T-107. It adds `src/core/search/fuzzy.ts` + tests and reworks `CommandPalette`. Keep the test ids and the "Switch to X" labels.
 2. T-107 … T-109, then **STOP at CP1** and hand to Opus with `git log`, the e2e log and screenshots. Do not push.
 3. Reviewer decides on `R-CP1-focus` before RC1.
 
