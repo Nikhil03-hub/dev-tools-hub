@@ -10,7 +10,7 @@
 | | Branch | HEAD | Tree | vs `origin/master` |
 |---|---|---|---|---|
 | Start | `v3` | `78b6698` | clean | 19 ahead / 0 behind |
-| End | `v3` | see §8 | clean | 20 ahead / 0 behind |
+| End | `v3` | `3083922` — `T-115: close CP1 review items -- spec reconciliation, palette focus, editor typography` | clean | 20 ahead / 0 behind |
 
 Remote verified before working, not assumed: `origin` = `https://github.com/Nikhil03-hub/dev-tools-hub`, remote branches are `origin/master` and `origin/HEAD` only — **there is no `origin/v3`**, so all V3 work is still local-only.
 
@@ -94,6 +94,10 @@ Swept `--c-accent` in both directions at runtime and re-ran the shipped measurem
 The gate fails in precisely the direction that harms each theme, so the 4.80:1 margin is monitored, not merely asserted. Per instruction I am **not** demanding extra margin: 4.80:1 satisfies the applicable 4.5:1 criterion for 13px text.
 
 **One honest internal shortfall, recorded rather than hidden:** recomputing the accent token for Note 1 showed accent-on-`accent-soft` in dark = **5.15:1**, i.e. 0.05 below UX_SPEC's own ≥5.2:1 target on that one background. Not a WCAG failure (AA is 4.5:1, and the automated gate enforces 4.5:1). I documented it in the spec instead of re-wording the target to make it pass.
+
+## 8b. Commit
+
+`3083922` is the single commit for this milestone and the tree the §4 gates ran on. A follow-up docs-only commit records this hash, because a commit cannot contain its own id; that follow-up touches no source, test or config file.
 
 ## 8. Security, privacy, build integrity
 

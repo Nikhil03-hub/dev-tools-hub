@@ -108,6 +108,7 @@ Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next a
 
 ## Handoff — T-115 CP1 closure (2026-10-25)
 
+ - **Verified HEAD for this milestone:** `3083922` (gates ran on this tree). The commit that records this hash is docs-only and changes no source, test or config file.
 - **Report:** `docs/v3/reports/CP1-closure.md`. Queue row 15 = `DONE`; **CP1 remains `PENDING`**, depending on `T-109…T-115`.
 - **Baseline verified:** started at `78b6698`, clean, 19 ahead / 0 behind. Confirmed by diff that `78b6698` differs from `0ee8b6e` only in two files under `docs/`, and re-ran the gates on the actual HEAD so the tested tree and reported HEAD coincide.
 - **Remote state:** `origin/master` only — **no `origin/v3` exists**, so all V3 work remains local. Nothing was pushed, merged, deployed or published in this task.
