@@ -2044,7 +2044,7 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    // Every route the product actually ships: 10 tools, home, and all three
+    // Every route the product actually ships: 11 tools, home, and all three
     // static pages including the not-found experience, which the first pass
     // omitted along with /about/.
     const PAGES = [
@@ -2062,6 +2062,7 @@ async function main() {
       ["text-diff/", "text-diff"],
       ["curl-converter/", "curl-converter"],
       ["url-parser/", "url-parser"],
+      ["cron-expression/", "cron-expression"],
     ];
     for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
@@ -3428,6 +3429,209 @@ const data = await response.text();`;
         JSON.stringify({ overflow, me: me.slice(0, 2) })
       );
       await mp.screenshot({ path: `${SHOT_DIR}/41-url-parser-mobile.png`, fullPage: true });
+      await mp.close();
+    }
+  }
+
+  // ---- T-205: Cron Expression Explainer ----
+  {
+    const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
+
+    const { p, errors } = await newCheckedPage(context);
+    const requests = [];
+    p.on("request", (r) => requests.push(r.url()));
+    await p.goto(BASE + "cron-expression/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(250);
+
+    const input = p.getByTestId("cron-input");
+    const status = p.getByTestId("cron-status");
+    const desc = () => p.getByTestId("cron-description").innerText();
+    const runs = async () => (await p.getByTestId("cron-runs").innerText()).split("\n").filter((l) => l.trim() !== "");
+
+    const h1 = p.getByRole("heading", { level: 1 });
+    check("cron_loads", (await h1.isVisible().catch(() => false)) && /Cron Expression Explainer/.test(await h1.innerText()), await h1.innerText());
+    check("cron_in_sidebar", await p.getByTestId("nav-cron").isVisible().catch(() => false));
+    check(
+      "cron_related_links_render",
+      (await p.getByTestId("related-timestamp-converter").count()) > 0 && (await p.getByTestId("related-regex-tester").count()) > 0
+    );
+    check("cron_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
+    check("cron_copy_disabled_when_empty", await p.getByTestId("cron-copy").isDisabled().catch(() => false));
+
+    // The spec's worked example, described word for word.
+    const startedAt = Date.now();
+    await input.fill("*/15 9-17 * * 1-5");
+    await p.waitForTimeout(400);
+    check(
+      "cron_main",
+      (await desc()) === "Every 15 minutes, between 09:00 and 17:59, Monday through Friday" && (await status.getAttribute("data-status")) === "valid",
+      JSON.stringify(await desc())
+    );
+    check("cron_status_says_five_field", /5-field/.test(await status.innerText()), await status.innerText());
+
+    // Runs: five of them, all valid zone-offset stamps, strictly increasing, all ahead of now.
+    const runList = await runs();
+    const stamps = runList.map((r) => Date.parse(r));
+    check(
+      "cron_next_runs",
+      runList.length === 5 &&
+        runList.every((r) => ISO_WITH_OFFSET.test(r)) &&
+        stamps.every((s, i) => i === 0 || s > stamps[i - 1]) &&
+        stamps[0] >= startedAt - 60_000,
+      JSON.stringify(runList)
+    );
+    // 09:00-17:59 in the browser's own zone: no listed run may fall at 03:00 local.
+    check("cron_respects_the_hour_window", runList.every((r) => {
+      const hour = Number(r.slice(11, 13));
+      return hour >= 9 && hour <= 17;
+    }), JSON.stringify(runList));
+
+    // The field table reflects the expression.
+    const fieldsTable = await p.getByTestId("cron-fields").innerText();
+    check("cron_fields_table", /minute[\s\S]\*\/15/i.test(fieldsTable) && /day of week/i.test(fieldsTable), JSON.stringify(fieldsTable));
+
+    // Seconds field is recognised.
+    await input.fill("30 0 * * * *");
+    await p.waitForTimeout(400);
+    check("cron_six_field", /6-field/.test(await status.innerText()), await status.innerText());
+    check("cron_second_field_named", /second/i.test(await p.getByTestId("cron-fields").innerText()), "second row present");
+
+    // A macro shows the schedule it stands for, not the word "@daily" five times.
+    await input.fill("@daily");
+    await p.waitForTimeout(400);
+    const macroFields = await p.getByTestId("cron-fields").innerText();
+    check("cron_macro_expands", (await desc()) === "At 00:00" && /minute[\s\S]0/i.test(macroFields) && !/@daily[\s\S]*@daily/.test(macroFields), JSON.stringify({ d: await desc(), macroFields }));
+
+    // Changing the time zone changes the offsets shown. Kiritimati is +14 all
+    // year, so the expectation does not drift with DST.
+    await p.getByTestId("cron-timezone").selectOption("Pacific/Kiritimati");
+    await p.waitForTimeout(450);
+    const movedRuns = await runs();
+    check("cron_timezone_changes_runs", movedRuns.length === 5 && movedRuns.every((r) => r.endsWith("+14:00")), JSON.stringify(movedRuns));
+    await p.getByTestId("cron-timezone").selectOption("UTC");
+    await p.waitForTimeout(450);
+    check("cron_utc_offset", (await runs()).every((r) => r.endsWith("+00:00")), JSON.stringify(await runs()));
+
+    // Presets fill the input.
+    await p.getByRole("button", { name: "Weekdays 09:00" }).click();
+    await p.waitForTimeout(400);
+    check("cron_preset", (await input.inputValue()) === "0 9 * * 1-5" && (await desc()).includes("09:00"), JSON.stringify({ v: await input.inputValue(), d: await desc() }));
+
+    // Copy gives back the explanation with its runs.
+    await p.getByTestId("cron-copy").click();
+    await p.waitForTimeout(250);
+    const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    const shownDesc = await desc();
+    const clipRuns = await runs();
+    // The clipboard comes back with CRLF on win32, so only line endings differ.
+    // Counting with an unanchored copy of the pattern: `^…$` under /g can match
+    // at most once, which would make this pass for the wrong reason.
+    const clipNorm = typeof clip === "string" ? clip.replace(/\r\n/g, "\n") : clip;
+    const expectedClip = [shownDesc, "", "Time zone: UTC", "Next runs:", ...clipRuns.map((r) => `  ${r}`)].join("\n");
+    check(
+      "cron_copy",
+      clipNorm === expectedClip && (clipNorm.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}/g) || []).length === 5,
+      JSON.stringify({ clip: String(clipNorm).slice(0, 120), expectedClip: expectedClip.slice(0, 120) })
+    );
+
+    // Errors, and an expression that is valid but never fires.
+    await input.fill("61 * * * *");
+    await p.waitForTimeout(400);
+    check(
+      "cron_error",
+      (await status.getAttribute("data-status")) === "invalid" && /minutes part must be >= 0 and <= 59/.test(await status.innerText()),
+      await status.innerText()
+    );
+    check("cron_error_hides_output", (await p.getByTestId("cron-description").count()) === 0);
+
+    await input.fill("0 0 0 * * * *");
+    await p.waitForTimeout(400);
+    check("cron_rejects_quartz", /7 fields/.test(await status.innerText()), await status.innerText());
+
+    await input.fill("0 0 30 2 *");
+    await p.waitForTimeout(500);
+    check(
+      "cron_never_fires_is_honest",
+      (await status.getAttribute("data-status")) === "valid" &&
+        (await p.getByTestId("cron-runs-none").isVisible().catch(() => false)) &&
+        /No upcoming run/.test(await p.getByTestId("cron-runs-none").innerText().catch(() => "")),
+      "February 30 case"
+    );
+
+    await p.getByTestId("btn-cron-clear").click();
+    await p.waitForTimeout(300);
+    check("cron_clear", (await status.getAttribute("data-status")) === "empty" && (await input.inputValue()) === "");
+
+    // Detection and hand-off.
+    await p.goto(BASE, { waitUntil: "networkidle" });
+    await p.getByTestId("home-paste").fill("*/15 9-17 * * 1-5");
+    await p.waitForTimeout(500);
+    check("cron_home_detects", await p.getByTestId("home-suggest-cron").isVisible().catch(() => false));
+    await p.getByTestId("home-suggest-cron").click();
+    await p.waitForTimeout(700);
+    check(
+      "cron_handoff_explains",
+      /cron-expression/.test(p.url()) && (await status.getAttribute("data-status")) === "valid" && (await desc()).includes("Every 15 minutes"),
+      JSON.stringify({ url: p.url(), d: await desc().catch(() => "") })
+    );
+
+    await p.getByTestId("cron-input").click();
+    const seen = new Set();
+    for (let i = 0; i < 14; i++) {
+      await p.keyboard.press("Tab");
+      seen.add(await p.evaluate(() => {
+        const el = document.activeElement;
+        return el ? `${el.tagName}:${el.getAttribute("data-testid") || el.getAttribute("aria-label") || ""}` : "none";
+      }));
+    }
+    check("cron_keyboard_traversal", seen.size >= 5, JSON.stringify([...seen]));
+
+    check("cron_no_console_errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)));
+    const offOrigin = requests.filter((u) => /^https?:\/\//.test(u) && !u.startsWith(BASE));
+    check("cron_requests_stay_local", offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 5)));
+    await p.screenshot({ path: `${SHOT_DIR}/42-cron-dark.png` });
+    await p.close();
+
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    for (const theme of ["light", "dark"]) {
+      const { p: tp, errors: te } = await newCheckedPage(context);
+      await tp.goto(BASE + "cron-expression/", { waitUntil: "domcontentloaded" });
+      await tp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await tp.reload({ waitUntil: "networkidle" });
+      await tp.getByTestId("btn-cron-sample").click();
+      await tp.waitForTimeout(500);
+      await tp.evaluate(axeSource);
+      const violations = await tp.evaluate(async () => {
+        const r = await window.axe.run(document, { resultTypes: ["violations"] });
+        return r.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
+      });
+      const shown = await tp.getByTestId("cron-description").innerText().catch(() => "");
+      check(
+        `cron_${theme}_populated`,
+        shown.includes("Every 15 minutes") && te.length === 0 && violations.length === 0,
+        JSON.stringify({ shown, violations, te: te.slice(0, 2) })
+      );
+      await tp.screenshot({ path: `${SHOT_DIR}/43-cron-${theme}.png` });
+      await tp.close();
+    }
+    {
+      const { p: mp, errors: me } = await newCheckedPage(context);
+      await mp.setViewportSize({ width: 375, height: 812 });
+      await mp.goto(BASE + "cron-expression/", { waitUntil: "networkidle" });
+      await mp.getByTestId("btn-cron-sample").click();
+      await mp.waitForTimeout(500);
+      const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check(
+        "cron_mobile_usable",
+        (await mp.getByTestId("cron-input").isVisible()) &&
+          (await mp.getByTestId("cron-runs").isVisible()) &&
+          overflow <= 1 &&
+          me.length === 0,
+        JSON.stringify({ overflow, me: me.slice(0, 2) })
+      );
+      await mp.screenshot({ path: `${SHOT_DIR}/44-cron-mobile.png`, fullPage: true });
       await mp.close();
     }
   }

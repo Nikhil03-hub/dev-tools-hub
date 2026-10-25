@@ -272,4 +272,30 @@ export const TOOL_META: ToolMeta[] = [
       related: ["encode-generate", "curl-converter", "debug-report"],
     },
   },
+  {
+    id: "cron",
+    slug: "cron-expression",
+    title: "Cron Expression Explainer",
+    navTitle: "Cron Explainer",
+    description:
+      "Explain a cron expression in plain English and list its next run times in any time zone. Supports 5- and 6-field formats.",
+    category: "time",
+    keywords: ["cron", "crontab", "schedule", "next run", "quartz", "kubernetes cronjob"],
+    icon: "CalendarClock",
+    status: "new",
+    docs: {
+      howTo: [
+        "Type or paste a cron expression, or pick a preset.",
+        "Choose the time zone the job runs in.",
+        "Check the plain-English meaning and the next 5 runs.",
+      ],
+      faq: [
+        {
+          q: "Which time zone do servers use?",
+          a: "Many use UTC. Kubernetes CronJobs use the controller's time zone unless spec.timeZone is set.",
+        },
+      ],
+      related: ["timestamp-converter", "regex-tester"],
+    },
+  },
 ];

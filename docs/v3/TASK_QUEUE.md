@@ -29,7 +29,7 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 | 18 | T-202 | Text diff | tasks/P2_tools.md | T-201 | DONE ¹ |
 | 19 | T-203 | cURL converter (redacting) | tasks/P2_tools.md | T-202 | DONE ¹ |
 | 20 | T-204 | URL parser + query editor | tasks/P2_tools.md | T-203 | DONE ¹ |
-| 21 | T-205 | Cron explainer | tasks/P2_tools.md | T-204 | READY |
+| 21 | T-205 | Cron explainer | tasks/P2_tools.md | T-204 | DONE ¹ |
 | 22 | T-206 | CSV ⇄ JSON | tasks/P2_tools.md | T-205 | READY |
 | 23 | **CP2** | **CHECKPOINT: STOP** | REVIEW_PROTOCOL.md | T-206 | PENDING |
 | 24 | T-301 | Custom redaction policy (engine) | tasks/P3_differentiators.md | CP2 | READY |
@@ -69,4 +69,4 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 | 58 | **CP6** | **CHECKPOINT: STOP** | REVIEW_PROTOCOL.md | T-503 | PENDING |
 | 59 | T-601…T-605 | Release pass → RC1 | tasks/P4_P6_cli_integrations_release.md | CP6 (or the owner may pull RC1 forward after CP3) | READY |
 
-¹ **T-201 … T-204 deviate from the queue rule on purpose, on owner instruction.** §4 says a task depending on `CPn` may start only when that row says `PASSED`; CP1 is still `PENDING`. The owner re-prioritised product completion over the review gate ("our project building and completion and working for project is main"), and repeated it after the CP1 pre-review ("do not use the pending checkpoint as an excuse to halt unrelated implementation"). So rows 17–20 were built, verified and pushed while CP1 waits. `DONE` is the implementer's status only — CP1 remains `PENDING`, and no checkpoint row was touched by any of these tasks. If the reviewer rejects CP1, this work is reworked on the same branch; T-201's converter core is its own commit (`07da1fe`) precisely so it can be reviewed or dropped independently.
+¹ **T-201 … T-205 deviate from the queue rule on purpose, on owner instruction.** §4 says a task depending on `CPn` may start only when that row says `PASSED`; CP1 is still `PENDING`. The owner re-prioritised product completion over the review gate ("our project building and completion and working for project is main"), and repeated it after the CP1 pre-review ("do not use the pending checkpoint as an excuse to halt unrelated implementation"). So rows 17–21 were built, verified and pushed while CP1 waits. `DONE` is the implementer's status only — CP1 remains `PENDING`, and no checkpoint row was touched by any of these tasks. If the reviewer rejects CP1, this work is reworked on the same branch; T-201's converter core is its own commit (`07da1fe`) precisely so it can be reviewed or dropped independently.

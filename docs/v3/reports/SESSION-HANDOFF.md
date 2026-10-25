@@ -210,3 +210,18 @@ GitHub reported **1 open moderate dependency vulnerability on the default branch
 2. Windows argument quoting is a live hazard for scripted evidence: Git Bash strips embedded `"` from arguments handed to `node -e`, so a mutation pattern containing `"//"` silently never matched and reported a false "no effect". Anchor such patterns on quote-free substrings, and always assert the pattern was found.
 
 **Next task: T-205 Cron Explainer** (`tasks/P2_tools.md`). Both dependencies it needs (`cronstrue@3.38.0`, `croner@10.0.1`, MIT, zero transitive) are already approved for T-205 in `DEPENDENCIES.md` and are **not yet installed** — no package.json change was made while T-204 was in flight.
+
+---
+
+## Addendum — T-205 Cron Explainer shipped on `v3` (2026-10-25, final)
+
+**Verified numbers, each tied to the tree it came from.** `npm run check` PASS exit 0 on the final tree: **237 unit tests (10 files)**, `check:registry` 11 tools, boundaries 25 pure files, both verify scripts ALL PASS, budgets OK, 14 static URLs. `npm run test:e2e` PASS **548 / FAIL 0**, exit 0, no console errors — 516 (T-204's tree) + 30 `cron_*` + 2 a11y route checks. Six mutations, each breaking exactly its own test, each restored byte-identically.
+
+**Batch A status:** T-201, T-202, T-203, T-204 and T-205 are `DONE`; **T-206 CSV ⇄ JSON is the next READY row**, then CP2. Ten shipped tools plus the JSON workbench's own pages make 11 routes.
+
+**Two things worth the next task's attention.**
+
+1. A mutation that produces no failure is a result, not a dead end. Deleting the Quartz branch stayed green because the generic "…has 7 fields…" fallback satisfied the same assertion; the test could not tell the paths apart. Tightening it to require the words "Quartz" and "seconds" made the mutation fail as it should. When an assertion cannot distinguish the code it guards, it is not a test.
+2. `H`, `5-1`, and `L` outside the day fields are all *rejected* rather than approximated — the tool states the disagreement instead of producing a confident wrong answer. If a future task wants Quartz or Jenkins support, it needs its own dialect decision, not a permissive regex.
+
+**Also recorded:** the e2e numbers above came from a `dist` built before the last two test-only edits; those files are not part of the bundle, and the final `npm run check` re-validated the same tree. Nothing in this addendum is carried over from an earlier report.

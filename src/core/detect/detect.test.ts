@@ -157,6 +157,49 @@ describe("detectInput", () => {
     });
   });
 
+  describe("cron (T-205)", () => {
+    const hasCron = (text: string) => detectInput(text).some((d) => d.toolId === "cron" && d.confidence === 0.7);
+
+    it("detects the common shapes", () => {
+      expect(hasCron("* * * * *")).toBe(true);
+      expect(hasCron("0 0 * * 1-5")).toBe(true);
+      expect(hasCron("*/15 9-17 * * 1-5")).toBe(true);
+      expect(hasCron("30 0 * * * *")).toBe(true);
+      expect(hasCron("0 0 1 1 SUN")).toBe(true);
+    });
+
+    it("detects the @-shortcuts", () => {
+      for (const m of ["@daily", "@hourly", "@weekly", "@monthly", "@yearly", "@annually", "@midnight"]) {
+        expect(hasCron(m)).toBe(true);
+      }
+    });
+
+    it("does not read a five-word sentence as a schedule", () => {
+      // The spec's field alphabet allows plain letters, which is why the extra
+      // "one field must hold a digit or operator" test exists.
+      expect(hasCron("the quick brown fox jumps")).toBe(false);
+      expect(hasCron("lorem ipsum dolor sit amet")).toBe(false);
+    });
+
+    it("does not fire on YAML, prose or a count list", () => {
+      expect(hasCron("a: 1\nb: 2")).toBe(false);
+      expect(hasCron("Please fix the login page, it is slow today.")).toBe(false);
+      expect(hasCron("1 2 3")).toBe(false);
+      expect(hasCron("0 0 * * * * *")).toBe(false); // seven fields is Quartz, not ours
+    });
+
+    it("ranks a schedule above weaker rules and below none", () => {
+      const out = detectInput("0 0 * * *");
+      expect(out[0].toolId).toBe("cron");
+    });
+
+    it("stays out of the way of a stronger signature", () => {
+      const out = detectInput(`curl https://api.example.com/me -H 'accept: application/json'`);
+      expect(out[0].toolId).toBe("debug-report");
+      expect(out.some((d) => d.toolId === "cron")).toBe(false);
+    });
+  });
+
   describe("YAML (T-201)", () => {
     const hasYaml = (text: string) => detectInput(text).some((d) => d.toolId === "yaml-json" && d.confidence === 0.65);
 

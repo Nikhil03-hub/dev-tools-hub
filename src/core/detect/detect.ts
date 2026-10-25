@@ -30,6 +30,25 @@ const YAML_LINE = /^\s*(- |[\w"'.-]+:(\s|$))/;
 const YAML_FIRST = /^\s*(#|---|- |[\w"'.-]+:)/;
 const YAML_COMMENT = /^\s*#/;
 
+// T-205 detector. Shape first, then the field alphabet: "a: 1 2 3 4" has five
+// spaces-separated tokens but is not cron, and the charset test is what keeps
+// YAML, logs and prose from claiming this tool.
+const CRON_SHAPE = /^@(yearly|annually|monthly|weekly|daily|midnight|hourly)$|^(?:\S+\s+){4,5}\S+$/;
+const CRON_FIELD = /^[\d*/,\-?LW#A-Za-z]+$/;
+// The spec's field alphabet is letters as well as digits, so on its own
+// "the quick brown fox jumps" is a five-field schedule. Requiring one field to
+// hold a digit or a cron operator keeps real expressions and drops sentences.
+const CRON_STRUCTURED = /[\d*/,\-?]/;
+
+function looksLikeCron(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed === "" || !CRON_SHAPE.test(trimmed)) return false;
+  if (trimmed.startsWith("@")) return true;
+  const fields = trimmed.split(/\s+/);
+  if (fields.length > 6) return false;
+  return fields.every((f) => CRON_FIELD.test(f)) && fields.some((f) => CRON_STRUCTURED.test(f));
+}
+
 function looksLikeYaml(text: string): boolean {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "" && !YAML_COMMENT.test(l));
   if (lines.length < 2 || !YAML_FIRST.test(lines[0])) return false;
@@ -127,6 +146,10 @@ export function detectInput(text: string, availableIds?: ReadonlySet<string>): D
   // structural, and JSON never reaches it.
   if (!parsedOk && looksLikeYaml(trimmed)) {
     add({ toolId: "yaml-json", confidence: 0.65, label: "Looks like YAML" }, 12);
+  }
+
+  if (!parsedOk && looksLikeCron(trimmed)) {
+    add({ toolId: "cron", confidence: 0.7, label: "Looks like a cron expression" }, 14);
   }
 
   return found

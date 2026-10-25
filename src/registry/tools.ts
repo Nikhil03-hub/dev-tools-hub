@@ -17,6 +17,7 @@ const LOADERS: Record<string, () => Promise<{ default: ToolComponent }>> = {
   "text-diff": () => import("../tools/diff/TextDiffApp"),
   "curl-converter": () => import("../tools/curl/CurlConverterApp"),
   "url-parser": () => import("../tools/url/UrlParserApp"),
+  "cron": () => import("../tools/cron/CronApp"),
 };
 
 export const TOOLS: ToolEntry[] = TOOL_META.map((m) => {
