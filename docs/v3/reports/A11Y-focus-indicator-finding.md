@@ -109,3 +109,22 @@ suppression in `src/lib/cmTheme.ts`, justified only because the frame ring it de
 is now verified complete.
 
 `R-CP1-focus` stays open for the reviewer to close; the implementer will not delete it.
+
+## N-1 disposition (found by the post-T-113 readiness audit, fixed in T-114)
+
+This file tracks focus indicators, but N-1 belongs to the same failure pattern and is recorded
+here so the class of defect stays visible: **a computed-style or empty-page check passed while the
+rendered result was inaccessible.**
+
+- **Symptom:** dark-theme regex match highlights at 2.29:1 (target 4.5:1).
+- **Cause:** `<mark>` inherits the user-agent `marktext` colour, which is a *declared* value and
+  therefore beats the `text-ink` on the containing `<pre>`. Nothing in `src/` styled `mark`.
+- **Why the gate missed it:** axe and the contrast sweep both ran against default tool states;
+  a highlight only exists once a pattern produces matches.
+- **Fix:** explicit per-level foregrounds and a retuned fill ladder, in
+  `src/tools/regex/components/MatchHighlight.tsx`. Details and measurements: `T-114.md`.
+- **Durable guard:** 12 rendered-state checks that drive the real workbench, assert the fixture
+  produced highlights before measuring, and fail on the UA-black signature itself.
+
+The lesson generalises beyond this component: accessibility assertions must target
+**populated, meaningful states**, and must read composited pixels rather than CSS declarations.

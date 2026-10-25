@@ -126,3 +126,28 @@ the local-first posture unchanged; zero off-origin requests.
 
 **CP1 remains PENDING.** All verification is Chromium-only; Safari/Firefox and the
 Netlify-delivered `_headers` path are still unverified.
+
+## Addendum — T-114 (N-1: rendered regex-highlight contrast)
+
+The readiness audit of `e234cab` found a fourth defect that the 356-check suite still missed,
+because its contrast sweep inspected default/empty tool states: `<mark>` took its foreground
+from the user-agent stylesheet rather than a theme token, so dark-mode match highlights
+rendered black on dark purple at **2.29:1**.
+
+Fix is confined to `src/tools/regex/components/MatchHighlight.tsx`: every highlight level now
+declares its own foreground, the fill ladder moved from `/40 → /70 → /85` to `/40 → /80 → /90`,
+and a latent indexing bug that made `GROUP_CLASSES[0]` unreachable was corrected. All four
+levels now measure between 4.80:1 and 9.33:1 in both themes.
+
+Two things worth carrying forward as method, not just as history:
+
+- `mark { color: inherit }` — the obvious one-line fix — was **measured and rejected**: it
+  repairs the dark match level but drops the first group level to 4.05 (light) and 3.38 (dark).
+  Highlight alphas stack, so the ladder itself had to change.
+- The new tests assert the fixture produced highlights *before* measuring contrast, and the
+  suite was mutated (pre-fix source rebuilt) to prove the checks actually fail on the defect.
+
+Current totals after T-114: `npm run check` exit 0 · `npm run test:e2e` **368 PASS / 0 FAILURE**
+· unit 56/56. Historical figures in earlier sections of this file are labelled as such.
+**CP1 remains PENDING**; Chromium-only, and production header delivery plus real 404 status are
+still unverified until a controlled deployment preview.

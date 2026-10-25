@@ -98,9 +98,84 @@ async function edgeCoverage(analyzer, png, box, accent, tol = 45) {
   return { edges: res, ratio, allFour: ["left", "right", "top", "bottom"].every((k) => ratio(res[k]) >= 0.9) };
 }
 
+/**
+ * In-page: measure the rendered contrast of every highlighted run inside a
+ * container, compositing each element's own background through its ancestors.
+ *
+ * Two things make a naive version lie, and both were hit while diagnosing N-1:
+ * highlight backgrounds STACK (a capture group's alpha sits on its parent group's
+ * alpha, which sits on the match's), so the real background is far more saturated
+ * than any single class suggests; and a `rgba()` value must not be compared as if
+ * it were opaque. Runs in the page because only getComputedStyle sees the cascade.
+ */
+function measureHighlightContrast(rootSelector) {
+  const parse = (x) => {
+    const m = String(x).match(/[\d.]+/g);
+    return m ? [+m[0], +m[1], +m[2], m[3] === undefined ? 1 : +m[3]] : null;
+  };
+  const over = (fg, bg) => {
+    const a = fg[3];
+    return [a * fg[0] + (1 - a) * bg[0], a * fg[1] + (1 - a) * bg[1], a * fg[2] + (1 - a) * bg[2]];
+  };
+  const lum = (c) => {
+    const [r, g, b] = c.map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+  const effBg = (el) => {
+    const stack = [];
+    for (let n = el; n; n = n.parentElement) {
+      const c = parse(getComputedStyle(n).backgroundColor);
+      if (c && c[3] > 0) {
+        stack.push(c);
+        if (c[3] >= 1) break;
+      }
+    }
+    let out = stack.length && stack[stack.length - 1][3] >= 1 ? stack[stack.length - 1].slice(0, 3) : [255, 255, 255];
+    for (let i = stack.length - 2; i >= 0; i--) out = over(stack[i], [...out, 1]);
+    return out;
+  };
+  const root = document.querySelector(rootSelector);
+  if (!root) return { missing: true, rows: [] };
+  const rows = [];
+  const walk = (el, depth) => {
+    for (const kid of el.children) {
+      const tag = kid.tagName.toLowerCase();
+      const isHighlight = tag === "mark" || tag === "span";
+      const level = tag === "mark" ? 0 : depth + 1;
+      if (isHighlight && (kid.textContent || "").trim() !== "") {
+        const cs = getComputedStyle(kid);
+        const bg = effBg(kid);
+        const fg = parse(cs.color);
+        const eff = fg[3] < 1 ? over(fg, [...bg, 1]) : fg.slice(0, 3);
+        rows.push({
+          level,
+          tag,
+          text: (kid.textContent || "").slice(0, 10),
+          color: cs.color,
+          fg: eff.map(Math.round),
+          bg: bg.map(Math.round),
+          ratio: +ratio(eff, bg).toFixed(2),
+          fontSize: cs.fontSize,
+        });
+      }
+      walk(kid, isHighlight ? level : depth);
+    }
+  };
+  walk(root, -1);
+  // The unhighlighted base text is the reference pair for this container.
+  const baseCs = getComputedStyle(root);
+  const baseBg = effBg(root);
+  const baseFg = parse(baseCs.color);
+  rows.push({ level: "base", tag: "pre", text: (root.textContent || "").slice(0, 10), color: baseCs.color, fg: baseFg.slice(0, 3).map(Math.round), bg: baseBg.map(Math.round), ratio: +ratio(baseFg.slice(0, 3), baseBg).toFixed(2), fontSize: baseCs.fontSize });
+  return { rows, uaBlackMark: rows.some((r) => r.tag === "mark" && r.color === "rgb(0, 0, 0)") };
+}
+
 async function main() {
-  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const page = await context.newPage();
 
@@ -2200,6 +2275,67 @@ async function main() {
         renderedHover >= 4.5;
       check(`contrast_accent_pairs_${theme}`, allPass, JSON.stringify({ pairs, renderedRest: +renderedRest.toFixed(2), renderedHover: +renderedHover.toFixed(2), rest, hover: hov }));
       await cp.close();
+    }
+  }
+
+  // ---- T-114: rendered regex highlights must stay readable (N-1) ----
+  {
+    // Every fixture drives the real workbench and then measures the painted
+    // pixels' colours. The empty-page sweep that let N-1 through is exactly what
+    // this replaces: a highlight only exists once a pattern produces matches.
+    const FIXTURES = [
+      { name: "nested_groups", pattern: "(((x)))y", text: "xy", minHighlights: 4, minLevels: 3 },
+      { name: "multiple_matches", pattern: "\\d+", text: "a1b22c333", minHighlights: 3, minLevels: 1 },
+      { name: "capture_and_plain", pattern: "(\\w)(\\d)", text: "a1 b2 c3", minHighlights: 6, minLevels: 2 },
+      { name: "no_match", pattern: "zzz", text: "abc", minHighlights: 0, minLevels: 0 },
+    ];
+    for (const theme of ["light", "dark"]) {
+      let levelsSeen = new Set();
+      for (const fx of FIXTURES) {
+        const { p: gp, errors: ge } = await newCheckedPage(context);
+        await gp.goto(BASE, { waitUntil: "domcontentloaded" });
+        await gp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+        await gp.goto(BASE + "regex-tester/", { waitUntil: "networkidle" });
+        await gp.waitForTimeout(250);
+        await gp.getByTestId("regex-pattern-input").fill(fx.pattern);
+        await gp.locator('textarea[aria-label="Test text"]').fill(fx.text);
+        await gp.waitForTimeout(500);
+        const measured = await gp.evaluate(measureHighlightContrast, '[data-testid="regex-highlight"]');
+        if (measured.missing) {
+          check(`regex_highlight_contrast_${fx.name}_${theme}`, false, "highlight container never rendered");
+          await gp.close();
+          continue;
+        }
+        const highlights = measured.rows.filter((r) => r.tag !== "pre");
+        // Assert the fixture actually produced output before trusting the numbers:
+        // a silent no-match would make any contrast test vacuously pass.
+        const fixtureOk = highlights.length >= fx.minHighlights;
+        const levels = new Set(highlights.map((r) => r.level));
+        const levelsOk = levels.size >= fx.minLevels;
+        const failing = highlights.concat(measured.rows).filter((r) => r.ratio < 4.5);
+        check(
+          `regex_highlight_contrast_${fx.name}_${theme}`,
+          fixtureOk && (fx.minLevels === 0 || levelsOk) && failing.length === 0 && !measured.uaBlackMark && ge.length === 0,
+          JSON.stringify({ theme, fixture: fx.name, highlights: highlights.length, levels: [...levels], uaBlackMark: measured.uaBlackMark, failing, sample: highlights.slice(0, 5), errors: ge })
+        );
+        highlights.forEach((r) => levelsSeen.add(r.level));
+        await gp.close();
+      }
+      check(`regex_highlight_levels_exercised_${theme}`, [0, 1, 2].every((l) => levelsSeen.has(l)), JSON.stringify([...levelsSeen]));
+      // An invalid pattern must be reported, not silently rendered as no matches.
+      const { p: ip } = await newCheckedPage(context);
+      await ip.goto(BASE + "regex-tester/", { waitUntil: "networkidle" });
+      await ip.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await ip.reload({ waitUntil: "networkidle" });
+      await ip.getByTestId("regex-pattern-input").fill("(unclosed");
+      await ip.locator('textarea[aria-label="Test text"]').fill("abc");
+      await ip.waitForTimeout(500);
+      const invalid = await ip.evaluate(() => {
+        const st = document.querySelector('[data-testid="regex-status"][data-status="invalid"]');
+        return { reported: !!st, text: st ? (st.textContent || "").trim().slice(0, 60) : null };
+      });
+      check(`regex_invalid_pattern_reported_${theme}`, invalid.reported === true && /invalid|error|unterminated|unexpected/i.test(invalid.text || ""), JSON.stringify(invalid));
+      await ip.close();
     }
   }
 

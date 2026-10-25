@@ -62,9 +62,11 @@ Full detail in `docs/v3/reports/A11Y-focus-indicator-finding.md`.
 2. T-107 … T-109, then **STOP at CP1** and hand to Opus with `git log`, the e2e log and screenshots. Do not push.
 3. Reviewer decides on `R-CP1-focus` before RC1.
 
-## CP1 review pass (after T-109)
+## CP1 review pass (after T-109) — HISTORICAL
 
-A self-audit found and fixed four material defects: 9 legacy controls with no focus indicator, a clipped-ring false pass, the home page downloading the 170 kB editor chunk, and an unreachable regex-flag hand-off. Totals are now **329/329 e2e** and `npm run check` exit 0.
+A self-audit found and fixed four material defects: 9 legacy controls with no focus indicator, a clipped-ring false pass, the home page downloading the 170 kB editor chunk, and an unreachable regex-flag hand-off. Totals **at that point** were 329/329 e2e with `npm run check` exit 0.
+
+> Do not read the paragraph above as the current state. Two later passes supersede it: **T-110…T-113** (editor keyboard trap, four-edge focus ring, dark hover contrast, palette/drawer/axe/scroll coverage → 356 checks) and **T-114** (rendered regex-highlight contrast, N-1 → current totals, see the section at the end of this file). Of the follow-ups listed below, the 13.5px font is still open and the light-theme scroll assertion landed in T-113.
 
 Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next action is Opus confirming the review, then the owner pushing `v3`. Non-blocking follow-ups: the 13.5px font, duplicate recents, and a light-theme scroll assertion.
 

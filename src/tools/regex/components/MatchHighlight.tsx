@@ -9,22 +9,23 @@ interface Region {
   children: Region[];
 }
 
-// Matches are painted over `canvas` (see `--c-canvas` in src/theme/tokens.css),
-// a low-chroma surface in both themes, so a low-opacity tint barely reads as
-// distinct from unhighlighted text —
-// this was reported as a real contrast bug (matches with no capture groups,
-// e.g. `\d+` or `hello`, only ever got this base shade and were nearly
-// invisible). 40% is the lowest opacity that still stands out clearly
-// against that background on its own, before any group shading stacks on
-// top of it.
-const MATCH_CLASS = "bg-accent/40 rounded-[3px]";
-// Increasing intensity by nesting depth so a group inside a group is
-// still visually distinguishable from its parent, capped at 3 levels —
-// deeper nesting just repeats the deepest shade rather than going dark
-// enough to hurt legibility. Text flips to the (dark) canvas color only at
-// the deepest level, once the fill is solid enough that the light `ink`
-// text color would itself start losing contrast against it.
-const GROUP_CLASSES = ["bg-accent/55 rounded-[3px]", "bg-accent/70 rounded-[3px]", "bg-accent/85 rounded-[3px] text-canvas"];
+// Every highlight declares its own foreground. Without one, <mark> takes the
+// user-agent `marktext` colour — a declared value, so it beats the `text-ink`
+// inherited from the <pre> — and that black-on-accent/40 measured 2.29:1 in the
+// dark theme.
+//
+// The fills STACK: a group's own alpha composites over its parent's, so the
+// rendered background is far more saturated than the class suggests. That means
+// the ladder has to cross the mid-tone band where *neither* theme text colour
+// reaches 4.5:1, so the foreground is chosen per level against the composited
+// colour, not against the class. Measured on rendered output (light / dark):
+//   match  /40  -> ink    9.33 / 7.86
+//   group  /80  -> canvas 4.80 / 5.56
+//   group+ /90  -> canvas 6.02 / 6.70
+// The previous /40 -> /70 -> /85 ladder left the first group level at 4.05 / 3.38
+// once its foreground was made explicit, which is why the opacities moved.
+const MATCH_CLASS = "bg-accent/40 rounded-[3px] text-ink";
+const GROUP_CLASSES = ["bg-accent/80 rounded-[3px] text-canvas", "bg-accent/90 rounded-[3px] text-canvas"];
 
 // Capture-group spans are always either nested inside, or disjoint from,
 // the overall match and from each other — they come from paired
@@ -51,7 +52,10 @@ function nestRegions(outer: Region, groupRegions: Region[]): Region {
 }
 
 function assignGroupClasses(node: Region, root: Region, depth: number) {
-  if (node !== root) node.className = GROUP_CLASSES[Math.min(depth - 1, GROUP_CLASSES.length - 1)];
+  // `depth` arrives as 2 for a group directly inside the match, so the ladder is
+  // indexed from 2 — otherwise the first entry is never used and every group
+  // collapses onto the deepest shade.
+  if (node !== root) node.className = GROUP_CLASSES[Math.min(depth - 2, GROUP_CLASSES.length - 1)];
   node.children.forEach((c) => assignGroupClasses(c, root, depth + 1));
 }
 
