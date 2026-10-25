@@ -25,7 +25,7 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 | 14 | T-114 | Rendered regex-highlight contrast (N-1) + rendered-state a11y gate | reports/T-114.md | T-113 | DONE |
 | 15 | T-115 | CP1 closure: spec reconciliation, focus handoff, editor typography, test hardening | reports/CP1-closure.md | T-114 | DONE |
 | 16 | **CP1** | **CHECKPOINT: STOP. Owner pushes `v3`, reviewer reviews P1** | REVIEW_PROTOCOL.md | T-109…T-115 | PENDING |
-| 17 | T-201 | YAML ⇄ JSON | tasks/P2_tools.md | CP1 | READY |
+| 17 | T-201 | YAML ⇄ JSON | tasks/P2_tools.md | CP1 | DONE ¹ |
 | 18 | T-202 | Text diff | tasks/P2_tools.md | T-201 | READY |
 | 19 | T-203 | cURL converter (redacting) | tasks/P2_tools.md | T-202 | READY |
 | 20 | T-204 | URL parser + query editor | tasks/P2_tools.md | T-203 | READY |
@@ -68,3 +68,5 @@ Status values: `READY` · `IN_PROGRESS` · `DONE` · `BLOCKED` · `ACCEPTED` · 
 | 57 | T-503 | Docs guides | tasks/P4_P6_cli_integrations_release.md | T-502 | READY |
 | 58 | **CP6** | **CHECKPOINT: STOP** | REVIEW_PROTOCOL.md | T-503 | PENDING |
 | 59 | T-601…T-605 | Release pass → RC1 | tasks/P4_P6_cli_integrations_release.md | CP6 (or the owner may pull RC1 forward after CP3) | READY |
+
+¹ **T-201 deviates from the queue rule on purpose, on owner instruction.** §4 says a task depending on `CPn` may start only when that row says `PASSED`; CP1 is still `PENDING`. The owner re-prioritised product completion over the review gate ("our project building and completion and working for project is main"), so T-201 was built, verified and pushed while CP1 waits. `DONE` is the implementer's status only — CP1 remains `PENDING` and nothing in this task changed a checkpoint row. If the reviewer rejects CP1, T-201 is reworked on the same branch; its core is a separate commit (`07da1fe`) precisely so it can be reviewed or dropped on its own.

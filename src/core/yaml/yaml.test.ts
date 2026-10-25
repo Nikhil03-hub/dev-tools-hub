@@ -44,6 +44,12 @@ describe("yamlToJson", () => {
     if (!r.ok) expect(r.error.message.toLowerCase()).toContain("unique");
   });
 
+  it("states the coordinates once, because the UI renders line and column separately", () => {
+    const r = yamlToJson("a: 1\na: 2", 2);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.message).toBe("Map keys must be unique");
+  });
+
   it("keeps YAML 1.2 semantics: hex resolves, dates stay strings", () => {
     const r = yamlToJson("n: 0x1F\nd: 2026-10-22", 2);
     expect(r.ok && r.value.json).toBe('{\n  "n": 31,\n  "d": "2026-10-22"\n}');

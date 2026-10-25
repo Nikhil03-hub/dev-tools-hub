@@ -1689,6 +1689,14 @@ async function main() {
   const missingCsp = allHtml.filter((f) => !/^waitlist/.test(f) && !fsRead(f).includes("connect-src 'none'"));
   check("csp_meta_on_every_page", missingCsp.length === 0, JSON.stringify(missingCsp));
 
+  // Every tool ships as <slug>/index.html, so the shipped set is read from the build
+  // rather than typed. A hard-coded count went stale the moment P2 added a tool;
+  // deriving it makes each new tool a check instead of a maintenance chore.
+  const SHIPPED_TOOLS = allHtml
+    .filter((f) => /^[^/]+\/index\.html$/.test(f) && !["privacy", "about"].includes(f.split("/")[0]))
+    .map((f) => f.split("/")[0]);
+  check("shipped_tools_from_build", SHIPPED_TOOLS.length >= 7 && SHIPPED_TOOLS.includes("yaml-to-json"), JSON.stringify(SHIPPED_TOOLS));
+
   // Netlify merges every matching rule, so two CSPs would both apply. The header
   // must be attached per page and never to the "/*" block. Split into blocks
   // rather than regex across them: "\s+" matches blank lines, which would let a
@@ -1711,7 +1719,7 @@ async function main() {
     await sp.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
 
     const linkCount = await sp.getByTestId("tool-switcher").locator("a").count();
-    check("shell_sidebar_has_all_tools", linkCount === 6, String(linkCount));
+    check("shell_sidebar_has_all_tools", linkCount === SHIPPED_TOOLS.length, JSON.stringify({ linkCount, SHIPPED_TOOLS }));
 
     // AC4: reach the link with the Tab key, then read the REAL computed outline.
     // Programmatic .focus() would not match :focus-visible, so this drives the
@@ -1865,7 +1873,7 @@ async function main() {
     check("home_secrets_warning", await hp.getByTestId("home-secrets-warning").isVisible(), "warning shown");
 
     const cards = await hp.locator('[data-testid^="home-card-"]').count();
-    check("home_cards_link", cards === 6, String(cards));
+    check("home_cards_link", cards === SHIPPED_TOOLS.length, JSON.stringify({ cards, SHIPPED_TOOLS }));
 
     await hp.goto(BASE + "privacy/", { waitUntil: "networkidle" });
     const privacyH1 = await hp.getByRole("heading", { level: 1 }).innerText();
@@ -2034,7 +2042,7 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    // Every route the product actually ships: 6 tools, home, and all three
+    // Every route the product actually ships: 7 tools, home, and all three
     // static pages including the not-found experience, which the first pass
     // omitted along with /about/.
     const PAGES = [
@@ -2048,6 +2056,7 @@ async function main() {
       ["timestamp-converter/", "timestamp-converter"],
       ["encode-generate/", "encode-generate"],
       ["debug-report/", "debug-report"],
+      ["yaml-to-json/", "yaml-to-json"],
     ];
     for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
@@ -2462,6 +2471,267 @@ async function main() {
     const editorLoaded = jsFiles.some((f) => /codemirror|JsonWorkbenchApp|JsonEditor|DebugReportApp/i.test(f));
     check("home_loads_no_editor_chunk", !editorLoaded, JSON.stringify(jsFiles));
     await np.close();
+  }
+
+  // ---- T-201: YAML ⇄ JSON ----
+  {
+    const YAML_SRC = "a: 1\nb: [x, y]";
+    const YAML_EXPECTED = '{\n  "a": 1,\n  "b": [\n    "x",\n    "y"\n  ]\n}';
+    const JSON_SRC = '{"a":1,"b":["x"],"c":{"d":null,"e":"yes"}}';
+    const JSON_EXPECTED = "a: 1\nb:\n  - x\nc:\n  d: null\n  e: yes\n";
+    const ALIAS_BOMB =
+      "a: &a [x,x,x,x,x,x,x,x,x,x]\nb: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a,*a]\nc: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b,*b]\nd: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c,*c]\ne: [*d,*d,*d,*d,*d,*d,*d,*d,*d,*d]";
+
+    const { p, errors } = await newCheckedPage(context);
+    const requests = [];
+    p.on("request", (r) => requests.push(r.url()));
+
+    await p.goto(BASE + "yaml-to-json/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(250);
+
+    const h1 = p.getByRole("heading", { level: 1 });
+    const h1Text = await h1.innerText().catch(() => "");
+    check("yaml_json_loads", (await h1.isVisible().catch(() => false)) && /YAML/i.test(h1Text), JSON.stringify(h1Text));
+    check("yaml_json_in_sidebar", await p.getByTestId("nav-yaml-json").isVisible().catch(() => false));
+    check(
+      "yaml_json_related_links_render",
+      (await p.getByTestId("related-json-workbench").count()) > 0 && (await p.getByTestId("related-debug-report").count()) > 0
+    );
+
+    const input = p.getByTestId("yaml-json-input").locator("textarea");
+    const status = p.getByTestId("yaml-json-status");
+    // React tracks the value on the instance, so a megabyte-scale input has to go
+    // through the native setter plus an input event; Playwright's fill() spent
+    // 30 s on it and timed out.
+    const setValue = (text) =>
+      p.evaluate((v) => {
+        const ta = document.querySelector('[data-testid="yaml-json-input"] textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(ta, v);
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+      }, text);
+    const readOutput = async () => {
+      const el = p.getByTestId("yaml-json-output").locator(".cm-content");
+      if ((await el.count()) === 0) return null;
+      return (await el.innerText()).replace(/\n+$/, "");
+    };
+    // win32: Chromium rewrites \n to \r\n on its way to the system clipboard, so
+    // line endings alone are not a content difference. Every other byte must still
+    // match, and the app's copy path is untouched.
+    const clipText = (s) => (typeof s === "string" ? s.replace(/\r\n/g, "\n") : s);
+
+    // Empty state must be useful, not just blank.
+    check("yaml_json_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
+    check("yaml_json_copy_disabled_when_empty", await p.getByTestId("yaml-json-copy").isDisabled().catch(() => false));
+    await p.getByTestId("btn-yaml-json-sample").click();
+    await p.waitForTimeout(350);
+    check("yaml_json_after_sample", (await status.getAttribute("data-status")) === "valid" && /"apiVersion"/.test((await readOutput()) || ""), (await status.innerText()));
+
+    // Main example, exact.
+    await setValue(YAML_SRC);
+    await p.waitForTimeout(350);
+    const mainOut = await readOutput();
+    check("yaml_json_main", mainOut === YAML_EXPECTED, JSON.stringify(mainOut));
+
+    // Copy gives back exactly what the spec's table says, newline for newline.
+    await p.getByTestId("yaml-json-copy").click();
+    await p.waitForTimeout(200);
+    const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    check("yaml_json_copy", clipText(clip) === YAML_EXPECTED, JSON.stringify(clip).slice(0, 160));
+
+    // Indent select.
+    await p.getByTestId("yaml-json-indent").selectOption("4");
+    await p.waitForTimeout(350);
+    check("yaml_json_indent_4", (await readOutput()) === '{\n    "a": 1,\n    "b": [\n        "x",\n        "y"\n    ]\n}', JSON.stringify(await readOutput()));
+    await p.getByTestId("yaml-json-indent").selectOption("2");
+    await p.waitForTimeout(300);
+
+    // Multi-document: one array plus the note that says why.
+    await setValue("a: 1\n---\nb: 2\n");
+    await p.waitForTimeout(350);
+    const multiOut = await readOutput();
+    const multiNotes = await p.getByTestId("yaml-json-notes").innerText().catch(() => "");
+    check(
+      "yaml_json_multi_doc",
+      multiOut === '[\n  {\n    "a": 1\n  },\n  {\n    "b": 2\n  }\n]' && /2 YAML documents were combined/.test(multiNotes),
+      JSON.stringify({ multiOut, multiNotes })
+    );
+
+    // Reverse direction, exact.
+    await p.getByRole("radio", { name: "JSON → YAML" }).click();
+    await p.waitForTimeout(150);
+    await setValue(JSON_SRC);
+    await p.waitForTimeout(350);
+    const revOut = await readOutput();
+    await p.getByTestId("yaml-json-copy").click();
+    await p.waitForTimeout(200);
+    const revClip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    check("yaml_json_reverse", revOut === JSON_EXPECTED.trimEnd() && clipText(revClip) === JSON_EXPECTED, JSON.stringify({ revOut, revClip }));
+
+    // Paste auto-detects the direction (spec: auto-set on paste via guessDirection).
+    await p.getByRole("radio", { name: "YAML → JSON" }).click();
+    await p.waitForTimeout(150);
+    await input.click();
+    const pasted = await p
+      .evaluate((text) => {
+        const ta = document.querySelector('[data-testid="yaml-json-input"] textarea');
+        const dt = new DataTransfer();
+        dt.setData("text/plain", text);
+        const dispatched = ta.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+        return { dispatched, hasClipboardData: !!new ClipboardEvent("paste", { clipboardData: dt }).clipboardData };
+      }, JSON_SRC)
+      .catch((e) => ({ error: e.message }));
+    await p.waitForTimeout(350);
+    const autoDir = await p.getByRole("radio", { name: "JSON → YAML" }).getAttribute("aria-checked");
+    check("yaml_json_paste_autodetects_direction", autoDir === "true", JSON.stringify({ pasted, autoDir }));
+
+    // The paste test leaves the tool in JSON → YAML; every case below is YAML input.
+    await p.getByRole("radio", { name: "YAML → JSON" }).click();
+    await p.waitForTimeout(200);
+
+    // Errors: coordinates shown once, and the output pane refuses to show stale text.
+    await setValue("a: [1, 2\nb: 3");
+    await p.waitForTimeout(350);
+    const errStatus = await status.getAttribute("data-status");
+    const errText = await status.innerText();
+    check("yaml_json_error", errStatus === "invalid" && /line 2/.test(errText) && errText.length > 20, JSON.stringify(errText));
+    check("yaml_json_error_coordinates_once", !/column 1: \(line/.test(errText), JSON.stringify(errText));
+    check("yaml_json_error_hides_output", (await p.getByTestId("yaml-json-output").count()) === 0);
+
+    await setValue("a: 1\na: 2");
+    await p.waitForTimeout(350);
+    check("yaml_json_duplicate_key", /unique/i.test(await status.innerText()), await status.innerText());
+
+    // Refusals that matter for a tool that parses untrusted input.
+    await setValue(ALIAS_BOMB);
+    await p.waitForTimeout(500);
+    check(
+      "yaml_json_alias_bomb_refused",
+      (await status.getAttribute("data-status")) === "invalid" && /Too many aliases/.test(await status.innerText()),
+      await status.innerText()
+    );
+
+    await setValue("__proto__: evil\nsafe: 1");
+    await p.waitForTimeout(350);
+    const protoText = await status.innerText();
+    check(
+      "yaml_json_prototype_key_refused",
+      (await status.getAttribute("data-status")) === "invalid" && /__proto__/.test(protoText),
+      JSON.stringify(protoText)
+    );
+    const polluted = await p.evaluate(() => ({}).polluted === undefined && !Object.prototype.hasOwnProperty.call({}, "safe"));
+    check("yaml_json_no_prototype_pollution", polluted);
+
+    // YAML 1.2 semantics, surfaced in the UI rather than only in unit tests.
+    await setValue("on: yes\noff: no\nnullish:\nempty:");
+    await p.waitForTimeout(350);
+    const sem = await readOutput();
+    check("yaml_json_12_semantics", /"on": "yes"/.test(sem || "") && /"off": "no"/.test(sem || "") && /"nullish": null/.test(sem || ""), JSON.stringify(sem));
+
+    // Over the manual threshold the tool must stop recomputing on every keystroke.
+    // Comment lines only, so the document stays 1 MB while the result stays tiny.
+    const bigComment = ("# " + "p".repeat(78) + "\n").repeat(12_600);
+    check("yaml_json_manual_input_is_over_threshold", bigComment.length > 1_000_000, String(bigComment.length));
+    await setValue(bigComment);
+    await p.waitForTimeout(600);
+    check(
+      "yaml_json_manual_button",
+      (await p.getByTestId("yaml-json-run").isVisible().catch(() => false)) && (await status.getAttribute("data-status")) === "idle",
+      await status.innerText()
+    );
+    check("yaml_json_manual_output_absent", (await p.getByTestId("yaml-json-output").count()) === 0);
+    await p.getByTestId("yaml-json-run").click();
+    await p.waitForTimeout(2000);
+    check("yaml_json_manual_converts_on_demand", (await status.getAttribute("data-status")) === "valid", await status.innerText());
+
+    // Clear resets everything.
+    await setValue(YAML_SRC);
+    await p.waitForTimeout(400);
+    await p.getByTestId("btn-yaml-json-clear").click();
+    await p.waitForTimeout(250);
+    check("yaml_json_clear", (await status.getAttribute("data-status")) === "empty" && (await input.inputValue()) === "");
+
+    // Home detection and hand-off.
+    await p.goto(BASE, { waitUntil: "networkidle" });
+    await p.getByTestId("home-paste").fill("server:\n  host: localhost\n  port: 8080\n");
+    await p.waitForTimeout(400);
+    check("yaml_json_home_detects", await p.getByTestId("home-suggest-yaml-json").isVisible().catch(() => false));
+    await p.getByTestId("home-suggest-yaml-json").click();
+    await p.waitForTimeout(600);
+    const handed = await readOutput();
+    check(
+      "yaml_json_handoff_converts",
+      /yaml-to-json/.test(p.url()) && (await status.getAttribute("data-status")) === "valid" && /"host": "localhost"/.test(handed || ""),
+      JSON.stringify({ url: p.url(), handed })
+    );
+
+    // Keyboard: focus must be able to leave both the textarea and the read-only editor.
+    await input.click();
+    const seen = new Set();
+    for (let i = 0; i < 14; i++) {
+      await p.keyboard.press("Tab");
+      seen.add(await p.evaluate(() => {
+        const a = document.activeElement;
+        return a ? `${a.tagName}:${a.getAttribute("data-testid") || a.getAttribute("aria-label") || ""}` : "none";
+      }));
+    }
+    check("yaml_json_keyboard_escapes_editor", seen.size >= 4, JSON.stringify([...seen]));
+    const trappedInEditor = await p.evaluate(() => {
+      const a = document.activeElement;
+      return !!a && !!a.closest && !!a.closest('[data-testid="yaml-json-output"]');
+    });
+    check("yaml_json_focus_not_stranded_in_output", !trappedInEditor);
+
+    check("yaml_json_no_console_errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)));
+    const offOrigin = requests.filter((u) => /^https?:\/\//.test(u) && !u.startsWith(BASE));
+    check("yaml_json_requests_stay_local", offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 5)));
+    await p.screenshot({ path: `${SHOT_DIR}/30-yaml-json-dark.png` });
+    await p.close();
+
+    // Light theme and a phone viewport.
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    for (const theme of ["light", "dark"]) {
+      const { p: tp, errors: te } = await newCheckedPage(context);
+      await tp.goto(BASE + "yaml-to-json/", { waitUntil: "domcontentloaded" });
+      await tp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await tp.reload({ waitUntil: "networkidle" });
+      await tp.getByTestId("yaml-json-input").locator("textarea").fill(YAML_SRC);
+      await tp.waitForTimeout(400);
+      const tOut = await tp.getByTestId("yaml-json-output").locator(".cm-content").innerText().catch(() => "");
+      check(`yaml_json_${theme}_theme_converts`, tOut.replace(/\n+$/, "") === YAML_EXPECTED && te.length === 0, JSON.stringify({ tOut, te: te.slice(0, 2) }));
+      // axe against the populated page: an empty tool page cannot show a contrast
+      // problem in the result pane, which is how CP1's blockers stayed hidden.
+      // Same impact filter as the route gate above. The one finding here is
+      // `region/moderate × 6`, measured identical on all five older tool pages —
+      // a shared ToolLayout matter, recorded in reports/T-201.md, not a T-201 regression.
+      await tp.evaluate(axeSource);
+      const violations = await tp.evaluate(async () => {
+        const r = await window.axe.run(document, { resultTypes: ["violations"] });
+        return r.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
+      });
+      check(`yaml_json_axe_populated_${theme}`, violations.length === 0, JSON.stringify(violations.slice(0, 4)));
+      await tp.screenshot({ path: `${SHOT_DIR}/31-yaml-json-${theme}.png` });
+      await tp.close();
+    }
+    {
+      const { p: mp, errors: me } = await newCheckedPage(context);
+      await mp.setViewportSize({ width: 375, height: 812 });
+      await mp.goto(BASE + "yaml-to-json/", { waitUntil: "networkidle" });
+      await mp.getByTestId("yaml-json-input").locator("textarea").fill(YAML_SRC);
+      await mp.waitForTimeout(400);
+      const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check(
+        "yaml_json_mobile_usable",
+        (await mp.getByTestId("yaml-json-input").isVisible()) &&
+          (await mp.getByTestId("yaml-json-output").isVisible()) &&
+          overflow <= 1 &&
+          me.length === 0,
+        JSON.stringify({ overflow, me: me.slice(0, 2) })
+      );
+      await mp.screenshot({ path: `${SHOT_DIR}/32-yaml-json-mobile.png`, fullPage: true });
+      await mp.close();
+    }
   }
 
   await browser.close();

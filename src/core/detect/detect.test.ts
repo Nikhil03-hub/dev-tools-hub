@@ -123,6 +123,61 @@ describe("detectInput", () => {
     detectInput(big);
     expect(performance.now() - start).toBeLessThan(300);
   });
+
+  describe("YAML (T-201)", () => {
+    const hasYaml = (text: string) => detectInput(text).some((d) => d.toolId === "yaml-json" && d.confidence === 0.65);
+
+    it("detects a flat mapping", () => {
+      expect(hasYaml("a: 1\nb: 2")).toBe(true);
+    });
+
+    it("detects a Kubernetes manifest, which starts with a comment and has bare parent keys", () => {
+      const manifest = `# kubernetes-style manifest\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\n  labels:\n    app: demo\nspec:\n  ports:\n    - 80\n    - 443\n  enabled: yes\n`;
+      expect(detectInput(manifest).some((d) => d.toolId === "yaml-json")).toBe(true);
+      expect(detectInput(manifest)[0].toolId).toBe("yaml-json");
+    });
+
+    it("detects a document that opens with ---", () => {
+      expect(hasYaml("---\nserver:\n  host: localhost\n  port: 8080\n")).toBe(true);
+    });
+
+    it("does not fire on JSON, which is a superset of YAML", () => {
+      expect(detectInput('{\n  "a": 1,\n  "b": 2\n}').some((d) => d.toolId === "yaml-json")).toBe(false);
+    });
+
+    it("needs at least two structural lines", () => {
+      expect(hasYaml("a: 1")).toBe(false);
+      expect(hasYaml("a: 1\n\n  \n")).toBe(false);
+    });
+
+    it("does not fire on prose", () => {
+      expect(hasYaml("Please fix the login page\nit is slow today\nand the logo is crooked")).toBe(false);
+    });
+
+    it("does fire on a bare bulleted list, because that is a valid YAML sequence", () => {
+      // Spec'd behaviour, recorded here rather than suppressed: `- x` is the YAML
+      // sequence form, and yamlToJson really does turn it into ["x", …].
+      expect(hasYaml("- buy milk\n- call the dentist\n- ship the release")).toBe(true);
+    });
+
+    it("does not fire on an HTTP message, which Debug Report already claims", () => {
+      const http = "GET /v1/items HTTP/1.1\nHost: api.example.com\nAccept: application/json";
+      const out = detectInput(http);
+      expect(out.some((d) => d.toolId === "yaml-json")).toBe(false);
+      expect(out[0].toolId).toBe("debug-report");
+    });
+
+    it("does not fire on a timestamped log line", () => {
+      expect(hasYaml("2026-10-22T10:00:00 ERROR boom\n2026-10-22T10:00:01 WARN retry\n2026-10-22T10:00:02 ERROR boom again")).toBe(
+        false
+      );
+    });
+
+    it("stays under the tools that have a stronger signature", () => {
+      const out = detectInput("a: 1\nb: 2\n");
+      expect(out.some((d) => d.toolId === "json-workbench")).toBe(false);
+    });
+  });
 });
 
 describe("countLikelySecrets", () => {

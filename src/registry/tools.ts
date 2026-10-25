@@ -13,6 +13,7 @@ const LOADERS: Record<string, () => Promise<{ default: ToolComponent }>> = {
   "regex-tester": () => import("../tools/regex/RegexTesterApp"),
   "timestamp-converter": () => import("../tools/timestamp/TimestampConverterApp"),
   "encode-generate": () => import("../tools/generators/GeneratorsApp"),
+  "yaml-json": () => import("../tools/yaml/YamlJsonApp"),
 };
 
 export const TOOLS: ToolEntry[] = TOOL_META.map((m) => {

@@ -21,6 +21,21 @@ const LOG_NOISE = /ERROR|WARN|Exception|Traceback|panic:/;
 const LOG_TIME = /^\[?\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 const URL_ENCODED = /%[0-9A-Fa-f]{2}/;
 const BASE64_SHAPE = /^[A-Za-z0-9+/]+={0,2}$/;
+// T-201 detector rule. Two deliberate widenings of the spec's
+// `^\s*(- |[\w"'.-]+:\s)`, both against measured false negatives on real files:
+// a block-mapping parent (`metadata:`) has nothing after the colon, and comments
+// carry no structure, so they stay out of the denominator. The first line must
+// also look like YAML, which is what keeps an HTTP message out.
+const YAML_LINE = /^\s*(- |[\w"'.-]+:(\s|$))/;
+const YAML_FIRST = /^\s*(#|---|- |[\w"'.-]+:)/;
+const YAML_COMMENT = /^\s*#/;
+
+function looksLikeYaml(text: string): boolean {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "" && !YAML_COMMENT.test(l));
+  if (lines.length < 2 || !YAML_FIRST.test(lines[0])) return false;
+  const matching = lines.filter((l) => YAML_LINE.test(l)).length;
+  return matching / lines.length >= 0.6;
+}
 
 function looksLikeJson(text: string): boolean {
   try {
@@ -99,6 +114,12 @@ export function detectInput(text: string, availableIds?: ReadonlySet<string>): D
   // a hand-off can start.
   if (trimmed.length >= 3 && /^\/.+\/[dgimsuvy]*$/.test(trimmed)) {
     add({ toolId: "regex-tester", confidence: 0.5, label: "Looks like a regex" }, 11);
+  }
+
+  // YAML is the one format here with no single-line signature, so the rule is
+  // structural, and JSON never reaches it.
+  if (!parsedOk && looksLikeYaml(trimmed)) {
+    add({ toolId: "yaml-json", confidence: 0.65, label: "Looks like YAML" }, 12);
   }
 
   return found

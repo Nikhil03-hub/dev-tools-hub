@@ -67,7 +67,10 @@ function firstDocumentError(docs: ReturnType<typeof parseAllDocuments>): Result<
     // prettyErrors puts the human sentence first and a source excerpt after it.
     const message = String(e.message).split("\n")[0].trim();
     const pos = e.linePos && e.linePos[0];
-    return err(message, pos ? pos.line : undefined, pos ? pos.col : undefined);
+    // prettyErrors also repeats the coordinates inside the sentence. The UI renders
+    // line/column separately, so keeping both reads as "…at line 2, column 1: (line 2, column 1)".
+    const trimmedMessage = pos ? message.replace(/\s*at line \d+, column \d+:?\s*$/i, "") : message;
+    return err(trimmedMessage, pos ? pos.line : undefined, pos ? pos.col : undefined);
   }
   return null;
 }
@@ -110,10 +113,6 @@ export function yamlToJson(src: string, indent: 2 | 4 = 2): Result<YamlToJsonVal
         return err("Too many aliases — this looks like a YAML bomb, so it was not expanded.");
       }
       return err(`Could not read the YAML input. ${firstLine(text)}`);
-    }
-    if (doc.errors.length > 0) {
-      const first = doc.errors[0];
-      return err(String(first.message).split("\n")[0].trim(), first.linePos?.[0]?.line, first.linePos?.[0]?.col);
     }
     if (hasUnsafeKey(value)) {
       return err("This YAML has a key such as __proto__ that JSON allows but JavaScript objects cannot hold safely, so nothing was converted.");

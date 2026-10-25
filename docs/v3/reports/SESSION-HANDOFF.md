@@ -160,3 +160,20 @@ GitHub reported **1 open moderate dependency vulnerability on the default branch
 **Specifically ask the reviewer to challenge:** the 374/0 and 56/56 claims against the logs; the palette focus handoff when the opener unmounts (no screen-reader verification exists); the no-match guard and its mutation proof; 13px/20px editors and gutter alignment; rendered highlight contrast in both themes; the 5.15:1 vs 5.2:1 internal-target exception; and that **all** browser evidence is Chromium-only with production headers and real 404 behaviour unverified.
 
 **CP1 remains `PENDING`.** This document was written by the implementer and is not an independent verdict.
+
+---
+
+## Addendum — T-201 YAML ⇄ JSON shipped on `v3` (2026-10-25)
+
+**What happened.** P2 started. `yaml@2.9.1` (ISC, zero dependencies) was added with `--save-exact`, and the first P2 tool went in as two commits: the pure core (`07da1fe`) and the tool + wiring, so the converter logic can be reviewed or dropped independently of the UI.
+
+**Gate state on the final tree.** `npm run check` PASS — 90 unit tests across 6 files (24 YAML core, 37 detector), `check:registry` 7 tools, boundaries 19 pure files, `verify:lib` and `verify:debugkit` ALL PASS (225 checks), build and size budgets OK, 10 static URLs generated. `npm run test:e2e` PASS 413 / FAIL 0 with no console errors. Four deliberate mutations and their exact failures are recorded in `reports/T-201.md`; every mutated file was restored byte-identically (`diff` verified) before the final run.
+
+**CP1 is still `PENDING`.** T-201 was started on owner instruction while the checkpoint waits, which is a recorded deviation from AGENTS.md §4 — see footnote ¹ in `TASK_QUEUE.md`. The implementer set T-201 to `DONE` and changed no checkpoint row.
+
+**Two things the next task should know.**
+
+1. `test/e2e.cjs` used to hard-code the tool count (`=== 6`) in `shell_sidebar_has_all_tools` and `home_cards_link`; both broke the moment a 7th tool arrived. They now derive it from `dist/<slug>/index.html`, so T-202 … T-206 need no test edit for the count.
+2. `npm run test:e2e` does **not** rebuild. Source edits need `npm run build` (or `npm run check`) first, or the suite tests a stale `dist`. It also refuses to start when something already holds port 4173 — a preview server orphaned by a timed-out run will look like a passing suite with 0 checks.
+
+**Open items handed forward, unchanged in status:** the `region`/moderate axe finding that sits on all six tool pages (shared `ToolLayout`, recorded in `reports/T-201.md`), production headers and real 404 behaviour, Firefox/Safari, screen-reader verification of the palette focus handoff, the 5.15:1 vs 5.2:1 internal-target exception, and the Tailwind v4 decision behind three moderate dev-only advisories.

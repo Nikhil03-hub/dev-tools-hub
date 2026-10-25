@@ -172,4 +172,31 @@ export const TOOL_META: ToolMeta[] = [
       related: ["jwt-decoder", "json-workbench", "debug-report"],
     },
   },
+  {
+    id: "yaml-json",
+    slug: "yaml-to-json",
+    title: "YAML to JSON Converter (and back)",
+    navTitle: "YAML ⇄ JSON",
+    description:
+      "Convert YAML to JSON and JSON to YAML with exact error lines, multi-document support and safe alias limits. Runs in your browser.",
+    category: "data",
+    keywords: ["yaml", "yml", "json", "convert", "kubernetes", "docker compose", "config"],
+    icon: "ArrowLeftRight",
+    status: "new",
+    docs: {
+      howTo: ["Paste YAML or JSON on the left.", "Pick the direction with the ⇄ switch (it is detected when you paste).", "Copy or download the result."],
+      faq: [
+        {
+          q: "Why does 'yes' stay a string?",
+          a: "This tool follows YAML 1.2, where yes/no/on/off are plain strings. Only true and false are booleans.",
+        },
+        {
+          q: "What about multiple documents (---)?",
+          a: "Each document becomes one item of a JSON array, and you get a note saying so.",
+        },
+      ],
+      // csv-json and toml-json do not exist yet; check:registry requires real ids.
+      related: ["json-workbench", "debug-report"],
+    },
+  },
 ];
