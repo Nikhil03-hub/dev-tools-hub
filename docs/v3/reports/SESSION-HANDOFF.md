@@ -121,3 +121,42 @@ Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next a
 - **Newly recorded, not hidden:** accent-on-active-tint in dark measures **5.15:1** against UX_SPEC's own ≥5.2:1 internal target — not a WCAG failure (gate enforces 4.5:1), documented in UX_SPEC Note 1 as an open shortfall.
 - **Trap for future mutation testing:** `npm run test:e2e` does not rebuild; a source mutation must be followed by `npm run build` or the suite silently tests a stale bundle.
 - **Awaiting:** owner visual acceptance of the regex highlight change (`test-results/cp1-closure/*.png`), an independent CP1 verdict from a reviewer who did not author T-110…T-115, then RC1 for real headers/404, cross-browser and screen-reader verification.
+
+## GitHub synchronisation — v3 review branch published (2026-10-25)
+
+Owner authorised a controlled review-branch push; `master` and deployment stay protected.
+
+| Item | Value |
+|---|---|
+| Local branch / HEAD | `v3` @ `92b4da9933b11921b7ac6eab50ce6fc8ad47ace2` |
+| Remote | `origin` = `https://github.com/Nikhil03-hub/dev-tools-hub` |
+| Published branch | `v3` (newly created — **no force-push, no history rewrite**) |
+| Remote HEAD after push | `92b4da9…` — **matches local exactly** (verified by `git ls-remote` + re-fetch) |
+| `origin/master` | `c7488ef` — **unchanged**, no merge, no release, no deploy |
+| Tracking | `v3` → `origin/v3`, 0 ahead / 0 behind, worktree clean |
+| Commits published | 21 (`74958ec` T-000 → `92b64a9`… i.e. T-000, T-101…T-115 and their repair/docs commits) |
+| Gates on the published tree | `npm run check` exit **0**; `npm run test:e2e` exit **0**, **374 PASS / 0 FAILURE**; unit 56/56; budgets OK. Logs: `test-results/cp1-verify/push-check.log`, `push-e2e.log` |
+| Pre-publish scan | 121 unique files in range; **no** binaries, screenshots, logs, `dist/`, `.env`, keys or local paths. Secret-pattern matches were only the owner's already-public name, the GoatCounter site code (a public URL host, not a credential) and repo URLs. `gitleaks` is not installed locally, so the authoritative scan remains CI's. |
+
+### CI status — explicitly NOT green for v3, because it never ran
+
+`ci.yml` triggers on `push: branches: [master]` and `pull_request`. GitHub's API confirms **5 workflow runs in the repository's history, all on `master`, all `success`, and none for `v3`**. So the published branch carries **no CI verdict** — the local gates above are the only evidence for it.
+
+**To obtain a CI verdict on this work, open a PR `v3` → `master`** (the `pull_request` trigger runs the same job; a PR is not a merge and can be closed). Note CI's coverage is a **subset** of the local gate: secret scan, `tsc`, `check:boundaries`, `test:unit`, `verify:lib`, `verify:debugkit`, `build` — it does **not** run `check:registry` and has **no Playwright/e2e step**, so CI passing would not re-verify any browser behaviour.
+
+### Also surfaced by the push
+
+GitHub reported **1 open moderate dependency vulnerability on the default branch** (`security/dependabot/5`). It concerns `master`, not `v3`, but it belongs in RC1's release checklist and should be triaged before any deploy decision.
+
+### Reviewer entry point (what to read, in order)
+
+1. `docs/v3/TASK_QUEUE.md` — CP1 is row 16, `PENDING`; rows 10–15 are `DONE` (implementer status, not acceptance).
+2. `docs/v3/REVIEW_PROTOCOL.md` — who may set `PASSED`.
+3. `docs/v3/UX_SPEC.md` §2 (tokens + Focus clause incl. the two recorded exceptions and the 5.15:1 shortfall note) and §9.
+4. `docs/v3/tasks/P1_foundation.md` §T-109 — the actual CP1 acceptance criteria (AC1/AC2/AC3).
+5. Reports: `T-110-T-113.md`, `T-114.md`, `CP1-closure.md`, `CP1-summary.md`, `CP1-review.md`, `A11Y-focus-indicator-finding.md`.
+6. Evidence: `test/e2e.cjs` (374 checks), `test-results/cp1-verify/*.log`, `test-results/cp1-closure/*.png` (12 populated-state screenshots, both themes).
+
+**Specifically ask the reviewer to challenge:** the 374/0 and 56/56 claims against the logs; the palette focus handoff when the opener unmounts (no screen-reader verification exists); the no-match guard and its mutation proof; 13px/20px editors and gutter alignment; rendered highlight contrast in both themes; the 5.15:1 vs 5.2:1 internal-target exception; and that **all** browser evidence is Chromium-only with production headers and real 404 behaviour unverified.
+
+**CP1 remains `PENDING`.** This document was written by the implementer and is not an independent verdict.
