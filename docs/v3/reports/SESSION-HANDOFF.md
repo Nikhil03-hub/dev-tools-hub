@@ -134,7 +134,7 @@ Owner authorised a controlled review-branch push; `master` and deployment stay p
 | Remote HEAD after push | `92b4da9…` — **matches local exactly** (verified by `git ls-remote` + re-fetch) |
 | `origin/master` | `c7488ef` — **unchanged**, no merge, no release, no deploy |
 | Tracking | `v3` → `origin/v3`, 0 ahead / 0 behind, worktree clean |
-| Commits published | 21 (`74958ec` T-000 → `92b64a9`… i.e. T-000, T-101…T-115 and their repair/docs commits) |
+| Commits published | 21 at the first push (`92b4da9`), 22 including this record — range `74958ec` (T-000) → `21e1931`, i.e. T-000, T-101…T-115 and their repair/docs commits |
 | Gates on the published tree | `npm run check` exit **0**; `npm run test:e2e` exit **0**, **374 PASS / 0 FAILURE**; unit 56/56; budgets OK. Logs: `test-results/cp1-verify/push-check.log`, `push-e2e.log` |
 | Pre-publish scan | 121 unique files in range; **no** binaries, screenshots, logs, `dist/`, `.env`, keys or local paths. Secret-pattern matches were only the owner's already-public name, the GoatCounter site code (a public URL host, not a credential) and repo URLs. `gitleaks` is not installed locally, so the authoritative scan remains CI's. |
 
