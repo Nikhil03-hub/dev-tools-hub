@@ -50,10 +50,23 @@ Colours are CSS variables holding RGB triplets (for example `--c-canvas: 11 11 1
 | `ink` | `#17171E` | `#EDEDF2` | primary text | ≥ 14.8:1 |
 | `ink-dim` | `#52525E` | `#A1A1B0` | secondary text | ≥ 6.8:1 |
 | `ink-faint` | `#6E6E7C` | `#82828F` | hints, placeholders, metadata | ≥ 4.5:1 on every surface |
-| `accent` | `#5646D8` | `#8B7CF8` | links, active nav, focus ring, accent text | ≥ 5.2:1 |
+| `accent` | `#5646D8` | `#968AFA` | links, active nav, focus ring, accent text | ≥ 5.2:1 — see note 1 |
 | `accent-strong` | `#5646D8` | `#6352E8` | **primary button background** (white text) | 6.4:1 / 5.4:1 |
 | `accent-soft` | accent at 10% alpha | accent at 16% alpha | active nav background, selected chips (Tailwind `bg-accent-soft`) | — |
 | `on-accent` | `#FFFFFF` | `#FFFFFF` | text on `accent-strong` (Tailwind `text-on-accent`) | see `accent-strong` |
+
+> **Note 1 — dark `accent` was raised from `#8B7CF8` to `#968AFA` in T-109, and this table previously still showed the old value.**
+> Measured as accent *text*, recomputed 2026-10-25 from the shipped tokens:
+>
+> | Background | `#8B7CF8` (old) | `#968AFA` (shipped) |
+> |---|---|---|
+> | `surface` | 5.63:1 | **6.50:1** |
+> | `canvas` | 5.93:1 | **6.84:1** |
+> | `raised` | 5.22:1 | **6.02:1** |
+> | `accent-soft` active tint (accent @16% over surface) | 4.58:1 | **5.15:1** |
+>
+> The change was forced by the last row: the old value failed the ≥ 5.2:1 target wherever accent text sits on its own tint, which is exactly the active-navigation state. The shipped value clears the target on every plain surface.
+> **Honest residual:** on the active tint it measures 5.15:1 — 0.05 short of this table's internal target. That is *not* a WCAG failure (AA needs 4.5:1 for normal text, and the automated gate enforces 4.5:1), so it is recorded as an open internal-target shortfall rather than silently re-wording the requirement to make it pass.
 | `syn-prop` / `syn-type` | `#0369A1` | `#7DD3FC` | editor: property and type names | ≥ 5.3:1 |
 | `syn-string` | `#4D7C0F` | `#A3E635` | editor: strings | ≥ 4.5:1 |
 | `syn-number` | `#B45309` | `#FBBF24` | editor: numbers | ≥ 4.5:1 |
@@ -93,6 +106,10 @@ Colours are CSS variables holding RGB triplets (for example `--c-canvas: 11 11 1
 **Focus:**
 - `outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px;` on `:focus-visible` for every interactive element.
 - Never remove an outline without replacing it.
+- **Two sanctioned exceptions, both forced by clipping, both verified on rendered pixels rather than computed CSS** (T-111):
+  1. *Edge-to-edge textareas* (Debug Report input, JWT input) sit inside panes with `overflow: hidden`. Measured with a `+2px` offset the ring painted on **0 of 4 edges**; at `outline-offset: -2px` it paints on all four.
+  2. *CodeMirror editors* cannot use an `outline` at all. The sticky, opaque line-number gutter is a positioned descendant and overpaints an inset outline — measured **0/125 accent pixels on the left edge** in both themes, i.e. a three-sided ring that computed CSS still reported as valid. An outset outline is clipped away entirely. The indicator is therefore a non-interactive `::after` border at `z-index: 300`, inside the frame.
+- Regression rule: a suppression of a child's indicator is only permitted where the replacement is proven complete by pixel measurement. `focus_ring_*` checks decode screenshots; a computed-style assertion alone is not accepted as evidence.
 
 **Motion:**
 - 120–160 ms ease-out for fades and small slides; no bouncing.

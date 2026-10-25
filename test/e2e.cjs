@@ -2287,7 +2287,7 @@ async function main() {
       { name: "nested_groups", pattern: "(((x)))y", text: "xy", minHighlights: 4, minLevels: 3 },
       { name: "multiple_matches", pattern: "\\d+", text: "a1b22c333", minHighlights: 3, minLevels: 1 },
       { name: "capture_and_plain", pattern: "(\\w)(\\d)", text: "a1 b2 c3", minHighlights: 6, minLevels: 2 },
-      { name: "no_match", pattern: "zzz", text: "abc", minHighlights: 0, minLevels: 0 },
+      { name: "no_match", pattern: "zzz", text: "abc", minHighlights: 0, minLevels: 0, exactHighlights: 0 },
     ];
     for (const theme of ["light", "dark"]) {
       let levelsSeen = new Set();
@@ -2309,7 +2309,10 @@ async function main() {
         const highlights = measured.rows.filter((r) => r.tag !== "pre");
         // Assert the fixture actually produced output before trusting the numbers:
         // a silent no-match would make any contrast test vacuously pass.
-        const fixtureOk = highlights.length >= fx.minHighlights;
+        const fixtureOk = highlights.length >= fx.minHighlights &&
+          // A no-match fixture that silently started matching would otherwise
+          // assert nothing at all, so pin the count exactly where it matters.
+          (fx.exactHighlights === undefined || highlights.length === fx.exactHighlights);
         const levels = new Set(highlights.map((r) => r.level));
         const levelsOk = levels.size >= fx.minLevels;
         const failing = highlights.concat(measured.rows).filter((r) => r.ratio < 4.5);
@@ -2376,6 +2379,61 @@ async function main() {
       const path = await fp.evaluate(() => location.pathname);
       check(`palette_run_navigates_and_keeps_focus_${theme}`, path !== "/" && afterRun === "button:btn-open-palette" && fe.length === 0, JSON.stringify({ path, afterRun, errors: fe }));
       await fp.close();
+    }
+  }
+
+  // ---- T-114 closure: palette focus when the executed command unmounts the opener ----
+  {
+    for (const theme of ["light", "dark"]) {
+      const { p: up, errors: ue } = await newCheckedPage(context);
+      await up.goto(BASE, { waitUntil: "domcontentloaded" });
+      await up.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      // The 404 page's CTA is the opener; running a command navigates away and
+      // unmounts it, which previously left focus on <body>.
+      await up.goto(BASE + "no-such-route-xyz/", { waitUntil: "networkidle" });
+      await up.waitForTimeout(250);
+      await up.getByRole("button", { name: "Search tools", exact: true }).click();
+      await up.waitForTimeout(250);
+      await up.keyboard.press("Enter");
+      await up.waitForTimeout(600);
+      const landed = await up.evaluate(() => {
+        const a = document.activeElement;
+        return {
+          tag: a ? a.tagName.toLowerCase() : null,
+          visible: !!a && a.offsetParent !== null,
+          onToolPage: !!(a && a.closest && a.closest("[data-tool-page], main")),
+          isHeading: !!a && a.tagName === "H1",
+          text: (a && a.textContent || "").trim().slice(0, 34),
+          path: location.pathname,
+        };
+      });
+      check(
+        `palette_focus_lands_on_heading_when_opener_unmounts_${theme}`,
+        landed.isHeading && landed.visible && landed.onToolPage && landed.path !== "/no-such-route-xyz/" && ue.length === 0,
+        JSON.stringify({ landed, errors: ue })
+      );
+      // Repeated palette-driven navigation must never strand focus on <body>.
+      let strandedAt = null;
+      for (let round = 1; round <= 3; round++) {
+        await up.getByTestId("btn-open-palette").click();
+        await up.waitForTimeout(250);
+        await up.keyboard.press("Enter"); // run the highlighted command -> navigates
+        await up.waitForTimeout(500);
+        const act = await up.evaluate(() => !document.activeElement || document.activeElement === document.body);
+        if (act && !strandedAt) strandedAt = round;
+      }
+      check(`palette_focus_never_stranded_on_body_${theme}`, strandedAt === null, JSON.stringify({ strandedAt }));
+      // Rapid open/close must leave the palette closed and focus recoverable.
+      for (let i = 0; i < 4; i++) {
+        await up.keyboard.press("Control+k");
+        await up.waitForTimeout(60);
+      }
+      const rapid = await up.evaluate(() => ({
+        dialogOpen: !!document.querySelector('[data-testid="command-palette"]'),
+        active: document.activeElement ? document.activeElement.tagName.toLowerCase() : "none",
+      }));
+      check(`palette_rapid_toggle_stable_${theme}`, rapid.dialogOpen === false && rapid.active !== "body" && ue.length === 0, JSON.stringify({ rapid, errors: ue }));
+      await up.close();
     }
   }
 

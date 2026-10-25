@@ -36,22 +36,44 @@ export default function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  // Distinguishes "the palette just closed" from "the component mounted closed",
+  // so the fallback below can never move focus during an ordinary page load.
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     if (open) {
       // Remember what opened the palette. Without this, closing left focus on
       // <body> and a keyboard user had to start tabbing from the top of the page.
+      wasOpenRef.current = true;
       openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setQuery("");
       setActiveIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
       return;
     }
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
     const opener = openerRef.current;
     openerRef.current = null;
     // Only restore onto a control that is still in the DOM and still rendered:
     // the sidebar trigger disappears entirely after a resize to mobile.
-    if (opener?.isConnected && opener.offsetParent !== null) opener.focus();
+    if (opener?.isConnected && opener.offsetParent !== null) {
+      opener.focus();
+      return;
+    }
+    // The executed command navigated, so the opener unmounted with its page.
+    // Landing on the new page's heading is the standard announcement point and
+    // keeps a keyboard or screen-reader user at the content they asked for
+    // instead of dropping them at the top of the document.
+    //
+    // Keep-alive mounts several tool pages at once and only the active one is
+    // visible, so "the first h1" is the wrong answer — pick the rendered one.
+    // Home and static pages put the heading inside <main>; a tool page puts it
+    // inside its ToolHost wrapper and reserves <main> for the workspace.
+    const heading = Array.from(
+      document.querySelectorAll<HTMLElement>("main h1[tabindex], [data-tool-page] h1[tabindex]")
+    ).find((h) => h.offsetParent !== null);
+    heading?.focus();
   }, [open]);
 
   const items: (Command & SearchItem)[] = useMemo(

@@ -9,7 +9,7 @@ import { interceptLinkClick } from "./navigation";
 export default function StaticPage({ page, onOpenPalette }: { page: StaticPageData; onOpenPalette: () => void }) {
   return (
     <main className="mx-auto w-full max-w-[760px] px-6 py-12">
-      <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.01em] text-ink">{page.heading}</h1>
+      <h1 tabIndex={-1} className="text-[28px] font-semibold leading-tight tracking-[-0.01em] text-ink">{page.heading}</h1>
       <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-ink-dim">
         {page.body.map((paragraph) => (
           <p key={paragraph}>{paragraph}</p>

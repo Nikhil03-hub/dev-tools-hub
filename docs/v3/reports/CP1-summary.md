@@ -151,3 +151,26 @@ Current totals after T-114: `npm run check` exit 0 · `npm run test:e2e` **368 P
 · unit 56/56. Historical figures in earlier sections of this file are labelled as such.
 **CP1 remains PENDING**; Chromium-only, and production header delivery plus real 404 status are
 still unverified until a controlled deployment preview.
+
+## Addendum — T-115 CP1 closure
+
+Closed the bounded items the pre-review raised and reconciled the acceptance contract with the
+implementation. Full detail: `CP1-closure.md`.
+
+- **Spec, not code, was wrong twice:** UX_SPEC still listed dark `accent` as `#8B7CF8` after T-109
+  shipped `#968AFA`, and its Focus clause mandated an outset outline that measures 0/4 edges inside
+  the editor panes. Both rows now describe the verified implementation with the measurements that
+  forced each deviation. No threshold was weakened.
+- **Editor typography is now spec-compliant** — it was rendering 13.5px/18.9px against `code` 13/20,
+  i.e. off on both size and line-height, not just size as previously reported.
+- **Palette focus handoff fixed:** a command that navigates away from its opener now lands on the
+  visible route heading instead of `<body>`, guarded so it never fires on page load.
+- **No-match contrast fixture hardened** to pin exactly zero highlights.
+
+Totals after T-115: `npm run check` exit 0 · `npm run test:e2e` **374 PASS / 0 FAILURE** · unit 56/56.
+Verified 0 checks removed and 3 added by parsing every `check(` call in both revisions.
+
+**Still open and deliberately not papered over:** dark accent-on-tint measures 5.15:1 against the
+spec's own 5.2:1 internal target (not a WCAG failure); the regex highlight appearance needs owner
+visual acceptance; and Chromium-only, production headers, real 404 status and screen-reader
+behaviour remain unverified. **CP1 is PENDING and requires an independent reviewer.**

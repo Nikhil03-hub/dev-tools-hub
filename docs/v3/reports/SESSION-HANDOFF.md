@@ -105,3 +105,18 @@ Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next a
 - **Boundary:** nothing pushed, nothing deployed, no history rewritten. Next stage is a genuinely
   independent CP1 review, then a separate controlled deployment-preview milestone for real
   headers/404 behaviour and the cross-browser pass.
+
+## Handoff — T-115 CP1 closure (2026-10-25)
+
+- **Report:** `docs/v3/reports/CP1-closure.md`. Queue row 15 = `DONE`; **CP1 remains `PENDING`**, depending on `T-109…T-115`.
+- **Baseline verified:** started at `78b6698`, clean, 19 ahead / 0 behind. Confirmed by diff that `78b6698` differs from `0ee8b6e` only in two files under `docs/`, and re-ran the gates on the actual HEAD so the tested tree and reported HEAD coincide.
+- **Remote state:** `origin/master` only — **no `origin/v3` exists**, so all V3 work remains local. Nothing was pushed, merged, deployed or published in this task.
+- **Fixed / closed:**
+  - UX_SPEC corrected to the shipped dark `accent` (`#968AFA`) with a measured contrast note, and its Focus clause now records the two clipping-forced exceptions plus the pixel-evidence rule.
+  - Editor typography brought to spec: was rendering **13.5px/18.9px**, now **13px/20px** (`code` = 13/20). Closes the long-standing F-1.
+  - Palette focus no longer strands on `<body>` when a command unmounts its opener — it lands on the visible route heading; guarded so it cannot fire on page load.
+  - `regex_highlight_contrast_no_match_*` now pins the highlight count to exactly 0, so it cannot pass vacuously.
+- **Evidence:** `npm run check` exit 0 · `npm run test:e2e` **374 PASS / 0 FAILURE** · unit 56/56 · budgets OK. Parsed all `check(` calls across both revisions: **0 removed, 3 added**. Two mutations (fixture made to match; fallback deleted) each failed exactly their own new tests, then were reverted.
+- **Newly recorded, not hidden:** accent-on-active-tint in dark measures **5.15:1** against UX_SPEC's own ≥5.2:1 internal target — not a WCAG failure (gate enforces 4.5:1), documented in UX_SPEC Note 1 as an open shortfall.
+- **Trap for future mutation testing:** `npm run test:e2e` does not rebuild; a source mutation must be followed by `npm run build` or the suite silently tests a stale bundle.
+- **Awaiting:** owner visual acceptance of the regex highlight change (`test-results/cp1-closure/*.png`), an independent CP1 verdict from a reviewer who did not author T-110…T-115, then RC1 for real headers/404, cross-browser and screen-reader verification.

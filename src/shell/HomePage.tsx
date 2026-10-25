@@ -39,7 +39,7 @@ export default function HomePage({
   return (
     <div className="mx-auto w-full max-w-[1120px] px-5 pb-16 pt-10 sm:px-8">
       <section className="mx-auto max-w-[760px] text-center">
-        <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[36px] sm:leading-[44px]">
+        <h1 tabIndex={-1} className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink sm:text-[36px] sm:leading-[44px]">
           Developer tools that never see your data.
         </h1>
         <p className="mx-auto mt-3 max-w-[620px] text-[15px] leading-relaxed text-ink-dim">

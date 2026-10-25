@@ -12,11 +12,18 @@ export const cmDarkTheme = EditorView.theme({
     color: "rgb(var(--c-ink))",
     backgroundColor: "rgb(var(--c-surface))",
     height: "100%",
-    fontSize: "13.5px",
+    // UX_SPEC §2 defines `code` as 13/20 mono for "editors, evidence". The
+    // rendered values were 13.5px/18.9px (18.9 is CodeMirror's own 1.4
+    // multiplier), so both the size and the line-height were off the scale.
+    // Line-height is repeated on .cm-content because CodeMirror's base theme
+    // sets it there and a rule on the frame alone does not win.
+    fontSize: "13px",
+    lineHeight: "20px",
   },
   ".cm-content": {
     fontFamily:
       "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
+    lineHeight: "20px",
     caretColor: "rgb(var(--c-accent))",
     padding: "14px 0",
   },
