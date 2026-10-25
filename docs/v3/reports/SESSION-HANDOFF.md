@@ -90,3 +90,18 @@ Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next a
   Safari/Firefox pass (F-3), palette restore when the opener unmounts (F-4).
 - **Boundary:** nothing pushed, nothing deployed, no remote state touched. The owner reviews
   the evidence, then an independent reviewer decides CP1.
+
+## Handoff — after T-114 (2026-10-25)
+
+- **Milestone:** CP1 release blocker N-1 repaired. Report: `docs/v3/reports/T-114.md`.
+- **Final verified HEAD:** `0ee8b6e` on `v3` — worktree clean, **18 ahead / 0 behind** `origin/master`.
+- **Queue:** T-114 is row 14 (`DONE`); **CP1 remains `PENDING`**, now depending on `T-109…T-114`.
+- **Gates on this HEAD:** `npm run check` exit 0 · `npm run test:e2e` **368 PASS / 0 FAILURE** · unit 56/56 · budgets OK.
+- **Fixed:** `<mark>` user-agent foreground leak (dark match highlight 2.29:1), the stacked-alpha
+  ladder that left the first group level unusable once foregrounds were made explicit, and a
+  latent indexing bug that made `GROUP_CLASSES[0]` dead code.
+- **Method note for future tasks:** contrast and focus assertions must run against **populated**
+  tool states and read composited colours. Empty-page sweeps passed over a real defect twice now.
+- **Boundary:** nothing pushed, nothing deployed, no history rewritten. Next stage is a genuinely
+  independent CP1 review, then a separate controlled deployment-preview milestone for real
+  headers/404 behaviour and the cross-browser pass.
