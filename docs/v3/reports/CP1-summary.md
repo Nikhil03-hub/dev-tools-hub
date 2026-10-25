@@ -104,3 +104,25 @@ An audit against the tree found four material defects; all were repaired and ver
 Final totals: `npm run check` exit 0 (unit **56/56**, verify_debugkit 147/147, budgets OK); `npm run test:e2e` **329 PASS / 0 FAILURE** (`V3/e2e-CP1-final3.log`).
 
 CP1 remains **PENDING** — this audit was performed by the implementing agent, so Opus still owns acceptance.
+
+## Addendum — post-CP1 accessibility repair (T-110 … T-113)
+
+Everything above describes the state at `32685cc`. A read-only release-gate verification of
+that commit found three defects the suite did not catch, now repaired and regression-tested.
+Full detail: `T-110-T-113.md`.
+
+| Item in this summary | Status after the repair |
+|---|---|
+| "focus rings restored on every control" | **Was incomplete.** Plain inputs were correct; the CodeMirror frame ring rendered on three edges (left 0/125 pixels). Now a `::after` overlay verified on all four, both themes. |
+| T-109 axe gate "16 checks, 8 pages × 2 themes" | Correct but narrow. Now **20 checks over 10 routes** (adds `/about/` and the not-found page). An axe pass still proves nothing about keyboard operability or ring geometry — that needed pixel and key-press tests. |
+| Dark accent token change (item 4 above) | The tint fix was right, but the same token family left `--c-accent-hover` at **2.34:1** as a hover *background* under white text. Roles are now split: `--c-accent-hover` stays a foreground, new `--c-accent-strong-hover` is the filled-control background (dark 80 63 208 → 7.09:1). |
+| "17 sites / 10 without replacement" | Superseded twice: 16/9 at review, **1 intentional suppression** remaining (`cmTheme.ts`, delegating to the now-complete frame ring). |
+| Desktop scroll assertion | Ran in one theme; now `toollayout_page_scrolls_light` and `_dark`. |
+| Not in this summary at all | **Keyboard trap in every editor** (Tab/Shift-Tab could not escape) — release blocker, fixed by `indentWithTab={false}` in the shared wrapper. |
+
+New totals: `npm run check` exit 0 (unit 56/56, verify_debugkit 147/147, budgets OK);
+`npm run test:e2e` **356 PASS / 0 FAILURE** exit 0. Home still loads no editor chunk; CSP and
+the local-first posture unchanged; zero off-origin requests.
+
+**CP1 remains PENDING.** All verification is Chromium-only; Safari/Firefox and the
+Netlify-delivered `_headers` path are still unverified.

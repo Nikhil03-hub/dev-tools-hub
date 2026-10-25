@@ -74,3 +74,17 @@ Read `docs/v3/reports/CP1-review.md` first. CP1 is still **PENDING**: the next a
 - Never verify focus visibility with programmatic `.focus()`: Chromium does not apply `:focus-visible` to it. The shell check presses Tab and then reads `getComputedStyle(activeElement)`.
 - `npm run test:e2e` output stays buffered to a file (`PASS=0` mid-run is normal).
 - `vite preview` takes ~8–10s to answer on this machine; a 5s curl check reports 000 and is not a failure.
+
+## Handoff — after T-110 … T-113 (2026-10-25)
+
+- **Milestone:** CP1 accessibility repair complete locally. Report: `docs/v3/reports/T-110-T-113.md`.
+- **Queue:** T-110…T-113 inserted as rows 10–13 (`DONE`); **CP1 is still `PENDING`** and now depends on `T-109…T-113`.
+- **Gates:** `npm run check` exit 0 · `npm run test:e2e` **356 PASS / 0 FAILURE** (was 329).
+- **Fixed:** editor keyboard trap (`indentWithTab={false}`), four-edge editor focus ring
+  (`::after` overlay above the sticky gutter, pixel-verified), dark hover contrast pair
+  (new `--c-accent-strong-hover`), palette focus restoration, drawer `aria-expanded`/
+  `aria-controls`, axe coverage to 10 routes, scroll checks in both themes.
+- **Not done / open:** `13.5px` editor font (F-1), deploy-time header + 404 status check (F-2),
+  Safari/Firefox pass (F-3), palette restore when the opener unmounts (F-4).
+- **Boundary:** nothing pushed, nothing deployed, no remote state touched. The owner reviews
+  the evidence, then an independent reviewer decides CP1.

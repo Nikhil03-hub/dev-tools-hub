@@ -94,6 +94,13 @@ export default function JsonEditor({
         minHeight={minHeight}
         readOnly={readOnly}
         placeholder={placeholder}
+        // @uiw/react-codemirror defaults this to true, which binds Tab/Shift-Tab
+        // to indentMore/indentLess and turns every editor into a keyboard trap:
+        // measured 6 forward and 4 backward presses with focus unchanged and
+        // defaultPrevented set on each. Escape does not blur either, so there was
+        // no keyboard exit at all. CodeMirror's own upstream default leaves Tab to
+        // the browser for exactly this reason.
+        indentWithTab={false}
         basicSetup={{
           lineNumbers: true,
           foldGutter: true,

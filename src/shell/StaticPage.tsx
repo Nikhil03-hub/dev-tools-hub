@@ -20,7 +20,7 @@ export default function StaticPage({ page, onOpenPalette }: { page: StaticPageDa
         <button
           type="button"
           onClick={onOpenPalette}
-          className="focus-ring mt-6 inline-flex h-9 items-center rounded-lg bg-accent-strong px-4 text-sm font-medium text-on-accent transition-colors hover:bg-accent-hover"
+          className="focus-ring mt-6 inline-flex h-9 items-center rounded-lg bg-accent-strong px-4 text-sm font-medium text-on-accent transition-colors hover:bg-accent-strong-hover"
         >
           Search tools
         </button>

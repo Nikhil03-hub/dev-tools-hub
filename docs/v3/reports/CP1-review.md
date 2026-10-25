@@ -3,6 +3,12 @@
 Date: 2026-10-24. Reviewer: the implementing agent (Qoder), acting on the owner's instruction.
 **Disclosure:** this is a self-audit by the agent that wrote the code, not a third-party review. Every claim below was re-executed against the repository in this pass, but the independence requirement is still met only by Opus. CP1 therefore stays `PENDING`.
 
+> **⚠️ PARTIALLY SUPERSEDED — read `T-110-T-113.md` first.** A later adversarial pass (keyboard walks + rendered-pixel inspection, not axe) found that two claims in this document were overstated:
+> - **F1/F2 were not fully fixed.** The CodeMirror frame ring painted only **three of four edges** (left-edge pixel coverage 0/125 in both themes) because the sticky gutter overpaints an inset `outline`, and the editors **trapped keyboard focus** — Tab and Shift-Tab could not leave them. Both are now fixed and pixel/keyboard tested (T-110, T-111).
+> - **F7 was not the whole contrast story.** The dark accent change that cleared 4.40:1 left `--c-accent-hover` at **2.34:1** as a *background* under white text on hover. Fixed by splitting the foreground and background roles (T-112).
+>
+> Where this file says "Fixed" for a focus-ring or keyboard item, read "fixed for plain inputs; the editor case needed T-110/T-111". Totals in §9 (329 checks) are superseded by 356.
+
 ## 1. Verdict
 
 **ACCEPT WITH REQUIRED FIXES — all required fixes implemented and verified in this pass.**
@@ -21,7 +27,7 @@ Four material defects were found (two of them release-blocking), repaired, and c
 | Generated/temp/sensitive files in commits | none (`git ls-files` has no `test-results`, logs, or `node_modules`) |
 | Build artefacts vs source | `dist/` regenerated from source during this review; 10 app pages + 404 + 2 waitlist + `_headers` + `sitemap.xml` |
 
-**Discrepancy found and corrected:** the CP1 summary and `A11Y-focus-indicator-finding.md` state "17 sites, 10 without replacement". The tree actually contains **16** `outline-none`/`outline: none` sites, **9** without a replacement — the T-107 palette rewrite removed one. Corrected in the follow-up commit.
+**Discrepancy found and corrected:** the CP1 summary and `A11Y-focus-indicator-finding.md` state "17 sites, 10 without replacement". The tree at review time actually contained **16** `outline-none`/`outline: none` sites, **9** without a replacement — the T-107 palette rewrite removed one. **After the repairs, the residual count is 1**: `src/lib/cmTheme.ts` `.cm-content:focus-visible { outline: none }`, which is the deliberate delegation to the frame ring (the other grep hit is a comment naming the old rule). That residual is only legitimate because T-111 made the frame ring render on all four edges.
 
 ## 3. Task audit (T-101 … T-109)
 
@@ -57,7 +63,7 @@ Four material defects were found (two of them release-blocking), repaired, and c
 Repair:
 - global `:focus-visible { outline: 2px solid rgb(var(--c-accent)); outline-offset: 2px }`;
 - `textarea:focus-visible { outline-offset: -2px }` and the CodeMirror frame ring with `outline-offset: -2px`, because a positive offset is clipped inside panes;
-- CodeMirror's `.cm-content` ring is suppressed **only** because the frame ring replaces it.
+- CodeMirror's `.cm-content` ring is suppressed **only** because the frame ring replaces it. *(This justification was invalid as originally written: the frame ring rendered on three edges, so the left edge had no indicator at all. T-111 replaced the frame `outline` with a non-interactive `::after` border above the sticky gutter, and the suite now measures accent pixels on all four edges in both themes.)*
 
 Regression tests: 8 checks (`focus_ring_{json_editor,debug_textarea,jwt_textarea,regex_pattern}_{light,dark}`), each focusing the real control, asserting `:focus-visible` matches, a non-transparent 2px outline, and — for edge-to-edge controls — a non-positive offset. Verified visually in both themes (`test-results/cp1/focus-json-light.jpg`, `focus-debug-dark.jpg`).
 
@@ -92,7 +98,7 @@ Cause: React was assigned to the `codemirror` chunk because that chunk first use
 | Command | Exit | Totals |
 |---|---|---|
 | `npm run check` | **0** | boundaries 17, registry 6, unit **56/56**, verify_lib ALL PASS, verify_debugkit **147/147**, budgets OK |
-| `npm run test:e2e` | **0** | **329 PASS / 0 FAILURE** (`V3/e2e-CP1-final3.log`), zero console errors, zero off-origin requests |
+| `npm run test:e2e` | **0** | **329 PASS / 0 FAILURE** (`V3/e2e-CP1-final3.log`), zero console errors, zero off-origin requests. *Superseded: 356 PASS / 0 FAILURE after T-110…T-113.* |
 | Visual | — | home/debug/json at 1440 both themes, home 390 dark, focus rings light+dark, mobile drawer, collapsed rail |
 
 Not independently verified: behaviour in real Safari/Firefox (all runs are Chromium), and the Netlify CSP header path in production (local `_headers` only).
@@ -103,7 +109,8 @@ Not independently verified: behaviour in real Safari/Firefox (all runs are Chrom
 |---|---|---|
 | F-1 | Replace `13.5px` with the 13px `code` token in `cmTheme.ts` | editor text matches UX_SPEC §2; no e2e change |
 | F-2 | Deduplicate Recents vs Tools and Recent vs active tool | one destination per tool in the palette; list still keyboard-stable |
-| F-3 | Extend the desktop scroll assertion to the light theme | the same check passes for both themes |
+| F-3 | Extend the desktop scroll assertion to the light theme | **DONE in T-113** — `toollayout_page_scrolls_light` and `_dark` both pass |
+| F-4 | Palette focus restoration, drawer `aria-expanded`, axe coverage for `/about/` and the 404 page | **DONE in T-113** |
 
 `R-CP1-focus` may be closed after Opus confirms the repair; it should not be deleted by the implementer.
 

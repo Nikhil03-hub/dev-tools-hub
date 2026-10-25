@@ -40,6 +40,64 @@ async function newCheckedPage(context) {
   return { p, errors };
 }
 
+// WCAG 2.x relative-luminance contrast ratio for two [r,g,b] triples.
+function contrastRatio(a, b) {
+  const lum = (c) => {
+    const [r, g, bl] = c.map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const l1 = lum(a);
+  const l2 = lum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+// "rgb(86, 70, 216)" or "150 138 250" -> [86,70,216]
+function parseRgb(str) {
+  const n = String(str).match(/\d+(?:\.\d+)?/g);
+  return n ? n.slice(0, 3).map(Number) : null;
+}
+
+/**
+ * Counts accent-coloured pixels along each edge of `box` in a PNG screenshot.
+ *
+ * Computed CSS cannot see paint order: the shipped editor ring reported
+ * `outline: 2px solid accent` on all four sides while the sticky, opaque
+ * line-number gutter overpainted the left one, so only three edges rendered.
+ * This decodes the actual pixels. Tolerant per channel so anti-aliased edges
+ * still count, and it samples mid-edge to skip rounded-corner clipping.
+ */
+async function edgeCoverage(analyzer, png, box, accent, tol = 45) {
+  const res = await analyzer.evaluate(
+    async ({ b64, box, accent, tol }) => {
+      const img = new Image();
+      await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = "data:image/png;base64," + b64; });
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      g.drawImage(img, 0, 0);
+      const d = g.getImageData(0, 0, c.width, c.height).data;
+      const at = (x, y) => { const i = ((y | 0) * c.width + (x | 0)) * 4; return [d[i], d[i + 1], d[i + 2]]; };
+      const hit = (p) => Math.abs(p[0] - accent[0]) < tol && Math.abs(p[1] - accent[1]) < tol && Math.abs(p[2] - accent[2]) < tol;
+      const line = (pts) => {
+        let h = 0;
+        for (const [x, y] of pts) if (hit(at(x, y))) h++;
+        return { hits: h, sampled: pts.length };
+      };
+      const L = [], R = [], T = [], B = [];
+      for (let y = box.t + 14; y <= box.b - 14; y += 4) { L.push([box.l + 1, y]); R.push([box.r - 2, y]); }
+      for (let x = box.l + 14; x <= box.r - 14; x += 4) { T.push([x, box.t + 1]); B.push([x, box.b - 2]); }
+      return { left: line(L), right: line(R), top: line(T), bottom: line(B) };
+    },
+    { b64: png.toString("base64"), box, accent, tol }
+  );
+  const ratio = (e) => (e.sampled ? e.hits / e.sampled : 0);
+  return { edges: res, ratio, allFour: ["left", "right", "top", "bottom"].every((k) => ratio(res[k]) >= 0.9) };
+}
+
 async function main() {
   const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
@@ -1647,9 +1705,21 @@ async function main() {
     const pageWidth = await mp.evaluate(() => document.documentElement.scrollWidth);
     check("shell_no_horizontal_overflow_390", pageWidth <= 390, String(pageWidth));
 
+    const expandedAttr = () => mp.getByTestId("btn-menu").getAttribute("aria-expanded");
+    const controlsAttr = () => mp.getByTestId("btn-menu").getAttribute("aria-controls");
+    const controlsResolves = () => mp.evaluate(() => {
+      const t = document.querySelector('[data-testid="btn-menu"]');
+      const id = t && t.getAttribute("aria-controls");
+      return id ? !!document.getElementById(id) : null;
+    });
+    const expClosed = await expandedAttr();
+    const ctlClosed = await controlsAttr();
+
     await mp.getByTestId("btn-menu").click();
     await mp.waitForTimeout(150);
     const drawerOpen = await mp.getByTestId("mobile-drawer").isVisible();
+    const expOpen = await expandedAttr();
+    const ctlOpenResolves = await controlsResolves();
     // A drawer rendered in the collapsed state would still "be visible" while
     // showing icon-only rows, so assert the labels are actually there.
     const drawerText = drawerOpen ? await mp.getByTestId("mobile-drawer").innerText() : "";
@@ -1658,10 +1728,29 @@ async function main() {
     await mp.waitForTimeout(150);
     const drawerClosed = !(await mp.getByTestId("mobile-drawer").isVisible().catch(() => false));
     const focusReturnedTo = await mp.evaluate(() => document.activeElement?.getAttribute("data-testid"));
+    const expReClosed = await expandedAttr();
     check(
       "shell_mobile_drawer_opens",
       drawerOpen && drawerHasLabels && drawerClosed && focusReturnedTo === "btn-menu" && me.length === 0,
       JSON.stringify({ drawerOpen, drawerHasLabels, drawerClosed, focusReturnedTo, errors: me })
+    );
+    // The disclosure state must be announced and must not desynchronise after a
+    // second open/close cycle.
+    await mp.getByTestId("btn-menu").click();
+    await mp.waitForTimeout(150);
+    const expSecondOpen = await expandedAttr();
+    await mp.getByTestId("drawer-scrim").click({ position: { x: 300, y: 400 } });
+    await mp.waitForTimeout(150);
+    const expAfterScrim = await expandedAttr();
+    check(
+      "drawer_aria_expanded_tracks_state",
+      expClosed === "false" && expOpen === "true" && expReClosed === "false" && expSecondOpen === "true" && expAfterScrim === "false",
+      JSON.stringify({ expClosed, expOpen, expReClosed, expSecondOpen, expAfterScrim })
+    );
+    check(
+      "drawer_aria_controls_resolves_only_when_open",
+      ctlClosed === null && ctlOpenResolves === true,
+      JSON.stringify({ ctlClosed, ctlOpenResolves })
     );
     await mp.close();
   }
@@ -1819,6 +1908,36 @@ async function main() {
     await dp.close();
   }
 
+  // ---- T-113: the docs block must be reachable by scrolling in BOTH themes ----
+  // The original check ran once under the ambient theme only; a theme that
+  // changed the workspace height could hide the docs block undetected.
+  {
+    for (const theme of ["light", "dark"]) {
+      const { p: wp, errors: we } = await newCheckedPage(context);
+      await wp.goto(BASE, { waitUntil: "domcontentloaded" });
+      await wp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await wp.goto(BASE + "jwt-decoder/", { waitUntil: "networkidle" });
+      await wp.waitForTimeout(300);
+      const info = await wp.evaluate(() => {
+        let sc = document.querySelector('[data-testid="tool-workspace"]')?.parentElement ?? null;
+        while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+        if (!sc) return { found: false };
+        const before = sc.scrollTop;
+        sc.scrollTop = sc.scrollHeight;
+        const after = sc.scrollTop;
+        // Measured AT full scroll: the point of the check is that the docs block
+        // can be reached, so sampling it after the restore would always miss.
+        const docs = Array.from(document.querySelectorAll("h2,h3")).find((h) => /how to use/i.test(h.textContent || ""));
+        const r = docs?.getBoundingClientRect();
+        const docsReachable = !!r && r.top < innerHeight && r.bottom > 0;
+        sc.scrollTop = before;
+        return { found: true, after, scrollHeight: sc.scrollHeight, clientHeight: sc.clientHeight, theme: document.documentElement.dataset.theme ?? "system", docsReachable };
+      });
+      check(`toollayout_page_scrolls_${theme}`, info.found === true && info.scrollHeight > info.clientHeight && info.after > 0 && info.docsReachable && we.length === 0, JSON.stringify({ info, errors: we }));
+      await wp.close();
+    }
+  }
+
   {
     // AC4 on a narrow screen: the page scrolls and never overflows sideways.
     const { p: mp2 } = await newCheckedPage(context);
@@ -1840,8 +1959,22 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    const PAGES = ["", "privacy/", "json-formatter/", "jwt-decoder/", "regex-tester/", "timestamp-converter/", "encode-generate/", "debug-report/"];
-    for (const slug of PAGES) {
+    // Every route the product actually ships: 6 tools, home, and all three
+    // static pages including the not-found experience, which the first pass
+    // omitted along with /about/.
+    const PAGES = [
+      ["", "home"],
+      ["privacy/", "privacy"],
+      ["about/", "about"],
+      ["not-a-real-route/", "notfound"],
+      ["json-formatter/", "json-formatter"],
+      ["jwt-decoder/", "jwt-decoder"],
+      ["regex-tester/", "regex-tester"],
+      ["timestamp-converter/", "timestamp-converter"],
+      ["encode-generate/", "encode-generate"],
+      ["debug-report/", "debug-report"],
+    ];
+    for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
         const { p: ap } = await newCheckedPage(context);
         await ap.goto(BASE + slug, { waitUntil: "networkidle" });
@@ -1857,7 +1990,6 @@ async function main() {
             .filter((v) => v.impact === "serious" || v.impact === "critical")
             .map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, target: v.nodes[0] && v.nodes[0].target }));
         });
-        const name = slug === "" ? "home" : slug.replace(/\/$/, "");
         check(`a11y_${name}_${theme}`, violations.length === 0, JSON.stringify(violations));
         await ap.close();
       }
@@ -1871,7 +2003,10 @@ async function main() {
     // ring must be drawn inside the control. Computed style alone cannot see
     // clipping — the offset is the geometric part of the assertion.
     const CONTROLS = [
-      ["json_editor", "json-formatter/", '[data-testid="main-editor"] .cm-content', true],
+      // The CodeMirror editors are NOT listed here: their ring is painted by a
+      // pseudo-element on the frame, so a computed `outline` assertion on them
+      // would be meaningless. They are covered by the rendered-pixel block
+      // further down, which checks all four edges actually paint.
       ["debug_textarea", "debug-report/", '[data-testid="debug-input"]', true],
       ["jwt_textarea", "jwt-decoder/", '[data-testid="jwt-input"] textarea', true],
       ["regex_pattern", "regex-tester/", '[data-testid="regex-pattern-input"]', false],
@@ -1913,6 +2048,198 @@ async function main() {
         );
         await fp.close();
       }
+    }
+  }
+
+  // ---- T-110: a CodeMirror editor must not trap the keyboard ----
+  {
+    // @uiw/react-codemirror defaults indentWithTab to true, which binds Tab and
+    // Shift-Tab to indentMore/indentLess. Focus could then never leave the
+    // editor by keyboard. These tests drive real key presses and assert on
+    // document.activeElement; "a Tab event fired" would prove nothing.
+    const EDITOR_SURFACES = [
+      ["json", "json-formatter/", '[data-testid="main-editor"] .cm-content', async (p) => { await p.goto(BASE + "json-formatter/", { waitUntil: "networkidle" }); }],
+      ["jwt_payload", "jwt-decoder/", '[data-testid="jwt-payload-output"] .cm-content', async (p) => { await p.goto(BASE + "jwt-decoder/", { waitUntil: "networkidle" }); await p.getByTestId("btn-jwt-sample").click(); await p.waitForTimeout(600); }],
+    ];
+    for (const [label, slug, sel, setup] of EDITOR_SURFACES) {
+      const { p: kp, errors: ke } = await newCheckedPage(context);
+      await setup(kp);
+      await kp.waitForTimeout(200);
+      // Resolve the sequential-focus neighbours of the editor in DOM order so
+      // the assertion is about real navigation, not a hardcoded control.
+      const plan = await kp.evaluate((s) => {
+        const editor = document.querySelector(s);
+        if (!editor) return { missing: true };
+        const items = Array.from(
+          document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),summary,[contenteditable="true"],[tabindex]:not([tabindex="-1"])')
+        ).filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+        const idx = items.findIndex((el) => el === editor || el.contains(editor) || editor.contains(el));
+        const id = (el) => (el ? el.tagName.toLowerCase() + ":" + (el.getAttribute("data-testid") || el.getAttribute("aria-label") || el.className.toString().split(/\s+/)[0]).slice(0, 30) : null);
+        return { idx, prev: id(items[idx - 1]), next: id(items[idx + 1]), count: items.length };
+      }, sel);
+      if (plan.missing || plan.idx < 1) {
+        check(`cm_tab_escapes_${label}`, false, JSON.stringify(plan));
+        await kp.close();
+        continue;
+      }
+      // Step in from the preceding control, then step out again.
+      await kp.evaluate((s) => {
+        const editor = document.querySelector(s);
+        const items = Array.from(document.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),summary,[contenteditable="true"],[tabindex]:not([tabindex="-1"])')).filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+        const idx = items.findIndex((el) => el === editor || el.contains(editor) || editor.contains(el));
+        items[idx - 1].scrollIntoView({ block: "center" });
+        items[idx - 1].focus();
+      }, sel);
+      await kp.keyboard.press("Tab");
+      const entered = await kp.evaluate((s) => { const e = document.querySelector(s); return !!e && document.activeElement === e; }, sel);
+      await kp.keyboard.press("Tab");
+      const after = await kp.evaluate(() => {
+        const a = document.activeElement;
+        return { insideEditor: !!(a && a.closest && a.closest(".cm-editor")), id: a ? a.tagName.toLowerCase() + ":" + (a.getAttribute("data-testid") || a.getAttribute("aria-label") || a.className.toString().split(/\s+/)[0]).slice(0, 30) : "BODY" };
+      });
+      await kp.keyboard.press("Shift+Tab");
+      const backInside = await kp.evaluate((s) => { const e = document.querySelector(s); return !!e && document.activeElement === e; }, sel);
+      check(`cm_tab_enters_${label}`, entered === true, JSON.stringify({ entered, plan }));
+      check(`cm_tab_escapes_${label}`, after.insideEditor === false, JSON.stringify({ after, plan }));
+      check(`cm_tab_destination_is_document_order_${label}`, after.id === plan.next, JSON.stringify({ expected: plan.next, got: after.id }));
+      check(`cm_shift_tab_returns_${label}`, backInside === true, JSON.stringify({ backInside, after }));
+      await kp.close();
+      void slug;
+    }
+    // Editor semantics survive the keymap change: typing still edits.
+    {
+      const { p: ep, errors: ee } = await newCheckedPage(context);
+      await ep.goto(BASE + "json-formatter/", { waitUntil: "networkidle" });
+      await ep.waitForTimeout(400);
+      await ep.locator('[data-testid="main-editor"] .cm-content').first().click({ position: { x: 200, y: 40 } });
+      await ep.keyboard.type('  {"kept": true}');
+      const typed = await ep.locator('[data-testid="main-editor"] .cm-content').innerText();
+      check("cm_typing_still_works", typed.includes('"kept"') && ee.length === 0, JSON.stringify({ typed: typed.replace(/\s+/g, " ").slice(0, 40), errors: ee }));
+      await ep.close();
+    }
+  }
+
+  // ---- T-111: the editor focus ring must actually render on all four edges ----
+  {
+    const analyzer = await browser.newPage({ viewport: { width: 400, height: 300 } });
+    const RING_TARGETS = [
+      ["json_editor", "json-formatter/", ".cm-editor", async (p) => { await p.goto(BASE + "json-formatter/", { waitUntil: "networkidle" }); }],
+      ["jwt_payload_editor", "jwt-decoder/", '[data-testid="jwt-payload-output"] .cm-editor', async (p) => { await p.goto(BASE + "jwt-decoder/", { waitUntil: "networkidle" }); await p.getByTestId("btn-jwt-sample").click(); await p.waitForTimeout(600); }],
+    ];
+    for (const theme of ["light", "dark"]) {
+      for (const [label, slug, frameSel, setup] of RING_TARGETS) {
+        const { p: rp } = await newCheckedPage(context);
+        await rp.goto(BASE, { waitUntil: "domcontentloaded" });
+        await rp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+        await setup(rp);
+        await rp.waitForTimeout(300);
+        const accent = await rp.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--c-accent").trim().split(/\s+/).map(Number));
+        const box = await rp.evaluate((s) => {
+          const content = document.querySelector(s.replace(".cm-editor", ".cm-content")) || document.querySelector(`${s} .cm-content`);
+          const frame = document.querySelector(s);
+          if (!frame || !content) return { missing: true };
+          frame.scrollIntoView({ block: "center" });
+          content.focus();
+          const r = frame.getBoundingClientRect();
+          return { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom), focused: document.activeElement === content, label: content.getAttribute("aria-label") };
+        }, frameSel);
+        if (box.missing) { check(`focus_ring_${label}_${theme}`, false, JSON.stringify(box)); await rp.close(); continue; }
+        const focused = await edgeCoverage(analyzer, await rp.screenshot(), box, accent);
+        // Blur and re-measure: a ring that never disappears is not a focus indicator.
+        await rp.evaluate(() => document.activeElement && document.activeElement.blur());
+        await rp.waitForTimeout(150);
+        const blurred = await edgeCoverage(analyzer, await rp.screenshot(), box, accent);
+        const ok = box.focused && focused.allFour && ["left", "right", "top", "bottom"].every((k) => blurred.ratio(blurred.edges[k]) < 0.05);
+        check(`focus_ring_${label}_${theme}`, ok, JSON.stringify({ accent, box, focused: focused.edges, blurred: blurred.edges }));
+        await rp.screenshot({ path: `${SHOT_DIR}/ring-${label}-${theme}.png`, clip: { x: Math.max(0, box.l - 12), y: Math.max(0, box.t - 12), width: Math.min(1400, box.r - box.l + 24), height: Math.min(880, box.b - box.t + 24) } });
+        await rp.close();
+      }
+    }
+    await analyzer.close();
+  }
+
+  // ---- T-112: accent foreground/background pairs must hold AA in both themes ----
+  {
+    // --c-accent-hover is a foreground token; a hovered FILLED control needs its
+    // own background token, because the two roles demand opposite luminance in
+    // dark mode. This measures the real rendered pair on a reachable control.
+    for (const theme of ["light", "dark"]) {
+      const { p: cp } = await newCheckedPage(context);
+      await cp.goto(BASE, { waitUntil: "domcontentloaded" });
+      await cp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await cp.goto(BASE + "no-such-route-xyz/", { waitUntil: "networkidle" });
+      await cp.waitForTimeout(300);
+      const tokens = await cp.evaluate(() => {
+        const cs = getComputedStyle(document.documentElement);
+        const triple = (n) => cs.getPropertyValue(n).trim();
+        return { accent: triple("--c-accent"), accentHover: triple("--c-accent-hover"), strong: triple("--c-accent-strong"), strongHover: triple("--c-accent-strong-hover"), onAccent: triple("--c-on-accent"), surface: triple("--c-surface"), canvas: triple("--c-canvas") };
+      });
+      const T = (s) => s.split(/\s+/).map(Number);
+      const white = T(tokens.onAccent);
+      const pairs = {
+        "strong_bg_white_text": contrastRatio(white, T(tokens.strong)),
+        "strong_hover_bg_white_text": contrastRatio(white, T(tokens.strongHover)),
+        "accent_text_on_surface": contrastRatio(T(tokens.accent), T(tokens.surface)),
+        "accent_hover_text_on_surface": contrastRatio(T(tokens.accentHover), T(tokens.surface)),
+        "focus_ring_on_surface": contrastRatio(T(tokens.accent), T(tokens.surface)),
+      };
+      const cta = cp.getByRole("button", { name: "Search tools", exact: true });
+      const rest = await cta.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, fg: getComputedStyle(e).color, fontSize: getComputedStyle(e).fontSize }));
+      await cta.hover();
+      await cp.waitForTimeout(200);
+      const hov = await cta.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, fg: getComputedStyle(e).color }));
+      const renderedRest = contrastRatio(parseRgb(rest.fg), parseRgb(rest.bg));
+      const renderedHover = contrastRatio(parseRgb(hov.fg), parseRgb(hov.bg));
+      const allPass =
+        pairs.strong_bg_white_text >= 4.5 &&
+        pairs.strong_hover_bg_white_text >= 4.5 &&
+        pairs.accent_text_on_surface >= 4.5 &&
+        pairs.accent_hover_text_on_surface >= 4.5 &&
+        pairs.focus_ring_on_surface >= 3 &&
+        renderedRest >= 4.5 &&
+        renderedHover >= 4.5;
+      check(`contrast_accent_pairs_${theme}`, allPass, JSON.stringify({ pairs, renderedRest: +renderedRest.toFixed(2), renderedHover: +renderedHover.toFixed(2), rest, hover: hov }));
+      await cp.close();
+    }
+  }
+
+  // ---- T-113: closing the command palette must return focus to its opener ----
+  {
+    for (const theme of ["light", "dark"]) {
+      const { p: fp, errors: fe } = await newCheckedPage(context);
+      await fp.goto(BASE, { waitUntil: "domcontentloaded" });
+      await fp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await fp.goto(BASE, { waitUntil: "networkidle" });
+      const active = () => fp.evaluate(() => {
+        const a = document.activeElement;
+        return !a || a === document.body ? "BODY" : a.tagName.toLowerCase() + ":" + (a.getAttribute("data-testid") || a.getAttribute("aria-label") || "").slice(0, 30);
+      });
+      // 1. Opened by pointer from the header trigger.
+      await fp.getByTestId("btn-open-palette").click();
+      await fp.waitForTimeout(250);
+      const openedOn = await active();
+      await fp.keyboard.press("Escape");
+      await fp.waitForTimeout(250);
+      const restoredTo = await active();
+      check(`palette_focus_restored_pointer_${theme}`, openedOn.startsWith("input:") && restoredTo === "button:btn-open-palette", JSON.stringify({ openedOn, restoredTo }));
+      // 2. Opened by keyboard from a sidebar link: the link is the opener.
+      await fp.getByTestId("nav-home").focus();
+      await fp.keyboard.press("Control+k");
+      await fp.waitForTimeout(250);
+      const openedByKbd = await active();
+      await fp.keyboard.press("Escape");
+      await fp.waitForTimeout(250);
+      const restoredKbd = await active();
+      check(`palette_focus_restored_keyboard_${theme}`, openedByKbd.startsWith("input:") && restoredKbd === "a:nav-home", JSON.stringify({ openedByKbd, restoredKbd }));
+      // 3. Running a command must still navigate and must not lose focus.
+      await fp.getByTestId("btn-open-palette").click();
+      await fp.waitForTimeout(250);
+      await fp.keyboard.press("Enter");
+      await fp.waitForTimeout(500);
+      const afterRun = await active();
+      const path = await fp.evaluate(() => location.pathname);
+      check(`palette_run_navigates_and_keeps_focus_${theme}`, path !== "/" && afterRun === "button:btn-open-palette" && fe.length === 0, JSON.stringify({ path, afterRun, errors: fe }));
+      await fp.close();
     }
   }
 

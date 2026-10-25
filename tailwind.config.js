@@ -17,7 +17,13 @@ export default {
         accent: {
           DEFAULT: "rgb(var(--c-accent) / <alpha-value>)",
           hover: "rgb(var(--c-accent-hover) / <alpha-value>)",
-          strong: "rgb(var(--c-accent-strong) / <alpha-value>)",
+          strong: {
+            DEFAULT: "rgb(var(--c-accent-strong) / <alpha-value>)",
+            // Background for a hovered filled control. Separate from `hover`,
+            // which is a foreground token and needs the opposite luminance in
+            // dark mode.
+            hover: "rgb(var(--c-accent-strong-hover) / <alpha-value>)",
+          },
           muted: "rgb(var(--c-accent) / 0.2)",
           soft: "rgb(var(--c-accent) / var(--c-soft-alpha))",
         },

@@ -35,13 +35,23 @@ export default function CommandPalette({
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (open) {
+      // Remember what opened the palette. Without this, closing left focus on
+      // <body> and a keyboard user had to start tabbing from the top of the page.
+      openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setQuery("");
       setActiveIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
+      return;
     }
+    const opener = openerRef.current;
+    openerRef.current = null;
+    // Only restore onto a control that is still in the DOM and still rendered:
+    // the sidebar trigger disappears entirely after a resize to mobile.
+    if (opener?.isConnected && opener.offsetParent !== null) opener.focus();
   }, [open]);
 
   const items: (Command & SearchItem)[] = useMemo(

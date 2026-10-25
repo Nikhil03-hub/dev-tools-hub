@@ -9,6 +9,10 @@
   --c-border: 228 228 233; --c-border-subtle: 238 238 242;
   --c-ink: 23 23 30; --c-ink-dim: 82 82 94; --c-ink-faint: 110 110 124;
   --c-accent: 86 70 216; --c-accent-hover: 72 56 200; --c-accent-strong: 86 70 216;
+  /* --c-accent-hover is a FOREGROUND token (hovered links/labels). A filled
+     control needs its own hovered BACKGROUND, because the two roles pull in
+     opposite directions in dark mode. */
+  --c-accent-strong-hover: 72 56 200;
   --c-ok: 4 120 87; --c-warn: 180 83 9; --c-err: 198 40 40; --c-info: 29 78 216;
   --c-soft-alpha: 0.10; --c-scroll: 200 200 210; --c-on-accent: 255 255 255;
   --c-syn-prop: 3 105 161; --c-syn-string: 77 124 15; --c-syn-number: 180 83 9;
@@ -21,6 +25,9 @@
   --c-border: 42 42 53; --c-border-subtle: 31 31 40;
   --c-ink: 237 237 242; --c-ink-dim: 161 161 176; --c-ink-faint: 130 130 143;
   --c-accent: 150 138 250; --c-accent-hover: 168 158 252; --c-accent-strong: 99 82 232;
+  /* Darkens on hover, as the light theme does. The previous value
+     (168 158 252, a lightened accent) put white label text at 2.34:1. */
+  --c-accent-strong-hover: 80 63 208;
   --c-ok: 52 211 153; --c-warn: 251 191 36; --c-err: 248 113 113; --c-info: 96 165 250;
   --c-soft-alpha: 0.16; --c-scroll: 56 56 74; --c-on-accent: 255 255 255;
   --c-syn-prop: 125 211 252; --c-syn-string: 163 230 53; --c-syn-number: 251 191 36;
@@ -37,6 +44,7 @@
     --c-border: 42 42 53; --c-border-subtle: 31 31 40;
     --c-ink: 237 237 242; --c-ink-dim: 161 161 176; --c-ink-faint: 130 130 143;
     --c-accent: 150 138 250; --c-accent-hover: 168 158 252; --c-accent-strong: 99 82 232;
+    --c-accent-strong-hover: 80 63 208;
     --c-ok: 52 211 153; --c-warn: 251 191 36; --c-err: 248 113 113; --c-info: 96 165 250;
     --c-soft-alpha: 0.16; --c-scroll: 56 56 74; --c-on-accent: 255 255 255;
     --c-syn-prop: 125 211 252; --c-syn-string: 163 230 53; --c-syn-number: 251 191 36;

@@ -57,10 +57,22 @@ export const cmDarkTheme = EditorView.theme({
   ".cm-placeholder": { color: "rgb(var(--c-ink-faint))" },
   // The editor is a composite widget, so the ring belongs on the frame rather
   // than on .cm-content (whose outline is clipped by .cm-scroller's overflow).
-  // A negative offset draws the ring INSIDE the frame: with a positive offset a
-  // pane's overflow-hidden clips it and the user sees only a sliver.
-  // This replaces the old `outline: none`, which removed the indicator entirely.
-  "&.cm-editor:focus-within": { outline: "2px solid rgb(var(--c-accent))", outlineOffset: "-2px" },
+  // It cannot be an `outline` on the frame either: the sticky, opaque line-number
+  // gutter is a positioned descendant and paints over an inset outline, while an
+  // outset outline is clipped away entirely by the overflow-hidden panes. Measured
+  // on the shipped build, an outline ring rendered on three edges out of four.
+  // A non-interactive pseudo-element border sits above the gutter and inside the
+  // frame, so all four edges render in both themes.
+  "&.cm-editor:focus-within": { outline: "none" },
+  "&.cm-editor:focus-within::after": {
+    content: "''",
+    position: "absolute",
+    inset: "0",
+    // Above .cm-gutters (z-index 200) so the left edge is not overpainted.
+    "z-index": "300",
+    "pointer-events": "none",
+    border: "2px solid rgb(var(--c-accent))",
+  },
   ".cm-content:focus-visible": { outline: "none" },
 });
 

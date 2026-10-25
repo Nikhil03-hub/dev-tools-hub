@@ -182,6 +182,7 @@ export default function App() {
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenMenu={() => setDrawerOpen(true)}
           showMenu={!isDesktop}
+          menuOpen={drawerOpen}
         />
         <div className={route.kind === "tool" ? "min-h-0 flex-1 overflow-y-auto" : "hidden"}>
           <ToolHost ref={hostRef} activeId={toolId} />

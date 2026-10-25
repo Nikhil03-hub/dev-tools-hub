@@ -85,3 +85,27 @@ The repair is a global `:focus-visible` rule plus removal of every `outline-none
 Regression tests: 8 checks covering four real controls in both themes, asserting `:focus-visible`, a non-transparent 2px outline, and a non-positive offset for edge-to-edge controls. Verified visually (`test-results/cp1/focus-json-light.jpg`, `focus-debug-dark.jpg`).
 
 `R-CP1-focus` may be closed after Opus confirms; the implementer must not delete the reviewer-owned row.
+
+## Status update — the "repaired" claim above was overstated
+
+The CP1 review pass fixed the plain-input cases but not the editor, and an adversarial
+re-verification found two further defects that this finding had missed:
+
+1. **The CodeMirror frame ring painted three edges, not four.** `outline-offset: -2px`
+   made it computationally valid, but the sticky, opaque `.cm-gutters` overpaints the
+   left edge: measured accent-pixel coverage **0/125** on the left in both themes versus
+   125/125 on the right. A computed-style assertion cannot see this. Fixed in **T-111**
+   with a non-interactive `::after` border at `z-index: 300`; the suite now decodes
+   screenshot pixels and requires ≥90% coverage on all four edges, and ~0% when unfocused.
+2. **UX_SPEC §9 "no keyboard traps" was violated by every editor.** `@uiw/react-codemirror`
+   defaults `indentWithTab` to true, so Tab/Shift-Tab were bound to indent and focus could
+   not leave the editor. Escape does not blur either. Fixed in **T-110** by passing
+   `indentWithTab={false}` in the single shared wrapper, restoring CodeMirror's own default.
+   Regression tests press real keys and assert `document.activeElement` lands on the
+   DOM-order neighbour, on two editor surfaces.
+
+Residual `outline-none` sites after both repairs: **1** — the deliberate `.cm-content`
+suppression in `src/lib/cmTheme.ts`, justified only because the frame ring it delegates to
+is now verified complete.
+
+`R-CP1-focus` stays open for the reviewer to close; the implementer will not delete it.

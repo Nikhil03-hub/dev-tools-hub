@@ -12,10 +12,12 @@ export default function TopBar({
   onOpenPalette,
   onOpenMenu,
   showMenu,
+  menuOpen,
 }: {
   onOpenPalette: () => void;
   onOpenMenu: () => void;
   showMenu: boolean;
+  menuOpen: boolean;
 }) {
   // Repainting is done by the CSS variables in src/theme/tokens.css once
   // `data-theme` changes; this state only exists so the button can show and
@@ -36,6 +38,12 @@ export default function TopBar({
           label="Open navigation"
           testId="btn-menu"
           onClick={onOpenMenu}
+          // The label names the target, not the state, so it stays correct in
+          // both positions; aria-expanded carries the state.
+          expanded={menuOpen}
+          // The drawer is only mounted while open, and aria-controls must point
+          // at something that exists.
+          controls={menuOpen ? "mobile-drawer" : undefined}
           icon={<Menu className="h-4 w-4" strokeWidth={2} />}
         />
       )}

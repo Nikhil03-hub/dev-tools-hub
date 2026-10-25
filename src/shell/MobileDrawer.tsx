@@ -56,6 +56,7 @@ export default function MobileDrawer({ onClose, children }: { onClose: () => voi
       />
       <div
         ref={panelRef}
+        id="mobile-drawer"
         role="dialog"
         aria-modal="true"
         aria-label="Navigation"
