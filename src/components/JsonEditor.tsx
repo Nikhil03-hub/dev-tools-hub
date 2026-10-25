@@ -33,7 +33,7 @@ export interface JsonEditorProps {
   minHeight?: string;
   placeholder?: string;
   ariaLabel: string;
-  language?: "json" | "ts" | "yaml";
+  language?: "json" | "ts" | "text";
   allowDrop?: boolean;
   lint?: boolean;
   onReady?: (view: EditorView) => void;
@@ -55,8 +55,9 @@ export default function JsonEditor({
 
   const extensions = useMemo(() => {
     const base = [
-      // "yaml" deliberately gets no grammar: the only YAML language mode is another
-      // dependency, and a read-only pane needs correct text more than colour.
+      // "text" gets no grammar on purpose: YAML, Python and Go have no bundled
+      // mode here, and a read-only pane needs correct text more than colour.
+      // Feeding those through the JSON grammar would mark valid input invalid.
       language === "json" ? jsonLang() : language === "ts" ? javascript({ typescript: true }) : [],
       EditorView.lineWrapping,
       // The editor's real input is CodeMirror's contenteditable, so the name

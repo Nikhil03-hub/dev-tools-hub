@@ -225,4 +225,34 @@ export const TOOL_META: ToolMeta[] = [
       related: ["json-workbench", "regex-tester"],
     },
   },
+  {
+    id: "curl-converter",
+    slug: "curl-converter",
+    title: "cURL to Code Converter",
+    navTitle: "cURL Converter",
+    description:
+      "Turn a cURL command into fetch, axios, Python requests or Go code, with tokens and passwords redacted by default. Runs in your browser.",
+    category: "debug",
+    keywords: ["curl", "convert", "fetch", "axios", "python", "requests", "go", "http client", "copy as curl"],
+    icon: "Terminal",
+    status: "new",
+    docs: {
+      howTo: [
+        "Paste a cURL command (Chrome/Firefox 'Copy as cURL' works, bash or cmd style).",
+        "Pick the language.",
+        "Secrets are replaced with placeholders unless you turn redaction off.",
+      ],
+      faq: [
+        {
+          q: "Why are my tokens replaced?",
+          a: "So you can paste the code into a chat, issue or docs without leaking credentials. Turn redaction off to get runnable code.",
+        },
+        {
+          q: "Which cURL options are supported?",
+          a: "Method, URL, headers, data/body, basic auth (-u) and cookies (-b). Anything else is listed as a note.",
+        },
+      ],
+      related: ["debug-report", "jwt-decoder", "json-workbench"],
+    },
+  },
 ];

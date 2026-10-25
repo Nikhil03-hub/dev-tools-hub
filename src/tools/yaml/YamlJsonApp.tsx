@@ -272,7 +272,7 @@ const YamlJsonApp = forwardRef<ToolHandle, ToolProps>(function YamlJsonApp(props
               <JsonEditor
                 value={parsed.output.text}
                 readOnly
-                language={direction === "yaml-to-json" ? "json" : "yaml"}
+                language={direction === "yaml-to-json" ? "json" : "text"}
                 ariaLabel={direction === "yaml-to-json" ? "JSON output" : "YAML output"}
                 lint={false}
               />

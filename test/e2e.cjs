@@ -2044,7 +2044,7 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    // Every route the product actually ships: 8 tools, home, and all three
+    // Every route the product actually ships: 9 tools, home, and all three
     // static pages including the not-found experience, which the first pass
     // omitted along with /about/.
     const PAGES = [
@@ -2060,6 +2060,7 @@ async function main() {
       ["debug-report/", "debug-report"],
       ["yaml-to-json/", "yaml-to-json"],
       ["text-diff/", "text-diff"],
+      ["curl-converter/", "curl-converter"],
     ];
     for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
@@ -2974,6 +2975,229 @@ async function main() {
         JSON.stringify({ overflow, me: me.slice(0, 2) })
       );
       await mp.screenshot({ path: `${SHOT_DIR}/35-text-diff-mobile.png`, fullPage: true });
+      await mp.close();
+    }
+  }
+
+  // ---- T-203: cURL Converter ----
+  {
+    const SPEC_CURL = `curl -X POST https://api.example.com/v1/items -H 'Content-Type: application/json' -d '{"name":"x"}'`;
+    const SPEC_FETCH = `const response = await fetch("https://api.example.com/v1/items", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    "name": "x"
+  })
+});
+const data = await response.text();`;
+    // Values chosen so the Redactor's own patterns fire, and so a real credential
+    // shape never sits in a committed file.
+    const SECRET_CURL = `curl 'https://api.example.com/v1/me' -H 'authorization: Bearer demo-token-abc123' -H 'x-api-key: demo-key-9f3a7b2c' --compressed`;
+
+    const { p, errors } = await newCheckedPage(context);
+    const requests = [];
+    p.on("request", (r) => requests.push(r.url()));
+
+    const out = p.getByTestId("curl-converter-output");
+    const status = p.getByTestId("curl-converter-status");
+    const readCode = async () => {
+      const el = out.locator(".cm-content");
+      if ((await el.count()) === 0) return null;
+      return (await el.innerText()).replace(/\n+$/, "");
+    };
+    const setVal = (text) =>
+      p.evaluate((v) => {
+        const el = document.querySelector('[data-testid="curl-converter-input"] textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(el, v);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }, text);
+    const clipText = (s) => (typeof s === "string" ? s.replace(/\r\n/g, "\n") : s);
+
+    await p.goto(BASE + "curl-converter/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(250);
+
+    const h1 = p.getByRole("heading", { level: 1 });
+    check("curl_converter_loads", (await h1.isVisible().catch(() => false)) && /cURL to Code/.test(await h1.innerText()), await h1.innerText());
+    check("curl_converter_in_sidebar", await p.getByTestId("nav-curl-converter").isVisible().catch(() => false));
+    check(
+      "curl_converter_related_links_render",
+      (await p.getByTestId("related-debug-report").count()) > 0 &&
+        (await p.getByTestId("related-jwt-decoder").count()) > 0 &&
+        (await p.getByTestId("related-json-workbench").count()) > 0
+    );
+    check("curl_converter_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
+    check("curl_converter_copy_disabled_when_empty", await p.getByTestId("curl-converter-copy").isDisabled().catch(() => false));
+
+    // The spec's exact example, rendered through the editor.
+    await setVal(SPEC_CURL);
+    await p.waitForTimeout(400);
+    const mainCode = await readCode();
+    check("curl_converter_main", mainCode === SPEC_FETCH, JSON.stringify(mainCode));
+    check("curl_converter_status_valid", (await status.getAttribute("data-status")) === "valid", await status.innerText());
+
+    await p.getByTestId("curl-converter-copy").click();
+    await p.waitForTimeout(200);
+    const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    check("curl_converter_copy", clipText(clip) === SPEC_FETCH, JSON.stringify(clip).slice(0, 140));
+
+    const dlPromise = p.waitForEvent("download", { timeout: 5000 });
+    await p.getByTestId("curl-converter-download").click();
+    const dl = await dlPromise.catch(() => null);
+    const dlName = dl ? await dl.suggestedFilename() : null;
+    check("curl_converter_download", dlName === "request.js", JSON.stringify(dlName));
+
+    // Parsed fields are shown separately from the generated code.
+    const parsedFace = await p.getByTestId("curl-converter-parsed").innerText().catch(() => "");
+    check("curl_converter_parsed_fields", /POST/.test(parsedFace) && parsedFace.includes("api.example.com/v1/items") && /1 header/.test(parsedFace), JSON.stringify(parsedFace));
+
+    // Each target emits its own language.
+    for (const [label, needle] of [
+      ["axios", "const response = await axios({"],
+      ["Python", "import requests"],
+      ["Go", "package main"],
+    ]) {
+      await p.getByRole("radio", { name: label, exact: true }).click();
+      await p.waitForTimeout(350);
+      const code = await readCode();
+      check(`curl_converter_target_${label.toLowerCase()}`, code !== null && code.includes(needle), JSON.stringify((code || "").slice(0, 60)));
+    }
+    await p.getByRole("radio", { name: "fetch", exact: true }).click();
+    await p.waitForTimeout(300);
+    check("curl_converter_target_back_to_fetch", (await readCode()) === SPEC_FETCH, JSON.stringify((await readCode()) || "").slice(0, 60));
+
+    // Redaction on: placeholders in, secrets out, count stated.
+    await setVal(SECRET_CURL);
+    await p.waitForTimeout(400);
+    const redactedCode = (await readCode()) || "";
+    check(
+      "curl_converter_redacts",
+      redactedCode.includes("<AUTH_TOKEN_1>") &&
+        redactedCode.includes("<SECRET_1>") &&
+        !redactedCode.includes("demo-token-abc123") &&
+        !redactedCode.includes("demo-key-9f3a7b2c"),
+      JSON.stringify(redactedCode)
+    );
+    check("curl_converter_redact_count", /2 secrets redacted/.test(await status.innerText()), await status.innerText());
+
+    // The unsupported option is reported, not dropped in silence.
+    const notesText = await p.getByTestId("curl-converter-notes").innerText().catch(() => "");
+    check("curl_converter_notes", /--compressed/.test(notesText), JSON.stringify(notesText));
+
+    // Redaction off: the warn line appears and the real value is emitted.
+    await p.getByRole("switch", { name: "Redact secrets" }).click();
+    await p.waitForTimeout(400);
+    const plainCode = (await readCode()) || "";
+    check(
+      "curl_converter_redact_off",
+      plainCode.includes("demo-token-abc123") && (await p.getByTestId("curl-converter-plain-warning")).isVisible(),
+      JSON.stringify(plainCode.slice(0, 120))
+    );
+    await p.getByRole("switch", { name: "Redact secrets" }).click();
+    await p.waitForTimeout(300);
+    check("curl_converter_warn_hidden_when_on", (await p.getByTestId("curl-converter-plain-warning").count()) === 0);
+
+    // Errors.
+    await setVal("GET /v1/me HTTP/1.1\nHost: api.example.com");
+    await p.waitForTimeout(400);
+    const errText = await status.innerText();
+    check(
+      "curl_converter_error",
+      (await status.getAttribute("data-status")) === "invalid" && /doesn't look like a cURL command/.test(errText),
+      JSON.stringify(errText)
+    );
+    check("curl_converter_error_hides_output", (await out.locator(".cm-content").count()) === 0);
+
+    await p.getByTestId("btn-curl-converter-clear").click();
+    await p.waitForTimeout(300);
+    check(
+      "curl_converter_clear",
+      (await status.getAttribute("data-status")) === "empty" && (await p.getByTestId("curl-converter-input").locator("textarea").inputValue()) === ""
+    );
+
+    // Sample loads, converts, and shows the placeholders.
+    await p.getByTestId("btn-curl-converter-sample").click();
+    await p.waitForTimeout(500);
+    const sampleCode = (await readCode()) || "";
+    check(
+      "curl_converter_sample",
+      (await status.getAttribute("data-status")) === "valid" && /<[A-Z_]+_\d+>/.test(sampleCode) && !sampleCode.includes("demo-token-abc123"),
+      JSON.stringify(sampleCode.slice(0, 100))
+    );
+
+    // Home detection: the T-106 rule for this tool, live at last.
+    await p.goto(BASE, { waitUntil: "networkidle" });
+    await p.getByTestId("home-paste").fill("curl https://api.example.com/v1/me -H 'accept: application/json'");
+    await p.waitForTimeout(500);
+    check("curl_converter_home_detects", await p.getByTestId("home-suggest-curl-converter").isVisible().catch(() => false));
+    await p.getByTestId("home-suggest-curl-converter").click();
+    await p.waitForTimeout(700);
+    const handed = (await readCode()) || "";
+    check(
+      "curl_converter_handoff_converts",
+      /curl-converter/.test(p.url()) && (await status.getAttribute("data-status")) === "valid" && handed.includes("api.example.com/v1/me"),
+      JSON.stringify({ url: p.url(), handed: handed.slice(0, 80) })
+    );
+
+    // Keyboard: focus moves through the controls without stranding.
+    await p.getByTestId("curl-converter-input").locator("textarea").click();
+    const seen = new Set();
+    for (let i = 0; i < 14; i++) {
+      await p.keyboard.press("Tab");
+      seen.add(await p.evaluate(() => {
+        const el = document.activeElement;
+        return el ? `${el.tagName}:${el.getAttribute("data-testid") || el.getAttribute("aria-label") || ""}` : "none";
+      }));
+    }
+    check("curl_converter_keyboard_traversal", seen.size >= 5, JSON.stringify([...seen]));
+
+    check("curl_converter_no_console_errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)));
+    const offOrigin = requests.filter((u) => /^https?:\/\//.test(u) && !u.startsWith(BASE));
+    check("curl_converter_requests_stay_local", offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 5)));
+    await p.screenshot({ path: `${SHOT_DIR}/36-curl-converter-dark.png` });
+    await p.close();
+
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    for (const theme of ["light", "dark"]) {
+      const { p: tp, errors: te } = await newCheckedPage(context);
+      await tp.goto(BASE + "curl-converter/", { waitUntil: "domcontentloaded" });
+      await tp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await tp.reload({ waitUntil: "networkidle" });
+      await tp.getByTestId("btn-curl-converter-sample").click();
+      await tp.waitForTimeout(500);
+      await tp.evaluate(axeSource);
+      const violations = await tp.evaluate(async () => {
+        const r = await window.axe.run(document, { resultTypes: ["violations"] });
+        return r.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
+      });
+      const shown = await tp.getByTestId("curl-converter-output").locator(".cm-content").innerText().catch(() => "");
+      check(
+        `curl_converter_${theme}_populated`,
+        shown.includes("await fetch(") && te.length === 0 && violations.length === 0,
+        JSON.stringify({ violations, te: te.slice(0, 2) })
+      );
+      await tp.screenshot({ path: `${SHOT_DIR}/37-curl-converter-${theme}.png` });
+      await tp.close();
+    }
+    {
+      const { p: mp, errors: me } = await newCheckedPage(context);
+      await mp.setViewportSize({ width: 375, height: 812 });
+      await mp.goto(BASE + "curl-converter/", { waitUntil: "networkidle" });
+      await mp.getByTestId("btn-curl-converter-sample").click();
+      await mp.waitForTimeout(500);
+      const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check(
+        "curl_converter_mobile_usable",
+        (await mp.getByTestId("curl-converter-input").isVisible()) &&
+          (await mp.getByTestId("curl-converter-output").isVisible()) &&
+          overflow <= 1 &&
+          me.length === 0,
+        JSON.stringify({ overflow, me: me.slice(0, 2) })
+      );
+      await mp.screenshot({ path: `${SHOT_DIR}/38-curl-converter-mobile.png`, fullPage: true });
       await mp.close();
     }
   }
