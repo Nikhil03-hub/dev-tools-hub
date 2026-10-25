@@ -16,6 +16,7 @@ const LOADERS: Record<string, () => Promise<{ default: ToolComponent }>> = {
   "yaml-json": () => import("../tools/yaml/YamlJsonApp"),
   "text-diff": () => import("../tools/diff/TextDiffApp"),
   "curl-converter": () => import("../tools/curl/CurlConverterApp"),
+  "url-parser": () => import("../tools/url/UrlParserApp"),
 };
 
 export const TOOLS: ToolEntry[] = TOOL_META.map((m) => {

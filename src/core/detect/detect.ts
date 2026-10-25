@@ -116,6 +116,13 @@ export function detectInput(text: string, availableIds?: ReadonlySet<string>): D
     add({ toolId: "regex-tester", confidence: 0.5, label: "Looks like a regex" }, 11);
   }
 
+  // A whole line that is exactly one http(s) URL. Anchored at both ends on
+  // purpose: "curl https://…" belongs to the cURL rules, and a log line that
+  // merely mentions a URL belongs to Debug Report.
+  if (/^https?:\/\/\S+$/.test(trimmed)) {
+    add({ toolId: "url-parser", confidence: 0.8, label: "Looks like a URL" }, 13);
+  }
+
   // YAML is the one format here with no single-line signature, so the rule is
   // structural, and JSON never reaches it.
   if (!parsedOk && looksLikeYaml(trimmed)) {

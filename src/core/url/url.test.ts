@@ -136,6 +136,13 @@ describe("parseUrlText — shapes that differ from the common case", () => {
   it("accepts a protocol-relative URL", () => {
     expect(parts("//example.com/x").href).toBe("https://example.com/x");
   });
+
+  it("accepts a scheme-relative localhost, which needs the // branch", () => {
+    // Without it this text has no dot and does not start with "localhost", so
+    // nothing would give it a scheme and the parse would fail.
+    expect(parts("//localhost:3000/h").hostname).toBe("localhost");
+    expect(parts("//localhost:3000/h").port).toBe("3000");
+  });
 });
 
 describe("buildUrl", () => {

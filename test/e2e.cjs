@@ -2044,7 +2044,7 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    // Every route the product actually ships: 9 tools, home, and all three
+    // Every route the product actually ships: 10 tools, home, and all three
     // static pages including the not-found experience, which the first pass
     // omitted along with /about/.
     const PAGES = [
@@ -2061,6 +2061,7 @@ async function main() {
       ["yaml-to-json/", "yaml-to-json"],
       ["text-diff/", "text-diff"],
       ["curl-converter/", "curl-converter"],
+      ["url-parser/", "url-parser"],
     ];
     for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
@@ -3021,11 +3022,14 @@ const data = await response.text();`;
     const h1 = p.getByRole("heading", { level: 1 });
     check("curl_converter_loads", (await h1.isVisible().catch(() => false)) && /cURL to Code/.test(await h1.innerText()), await h1.innerText());
     check("curl_converter_in_sidebar", await p.getByTestId("nav-curl-converter").isVisible().catch(() => false));
+    // The related set T-204 changed: curl-converter now points at url-parser
+    // instead of json-workbench, as that task's spec requires.
     check(
       "curl_converter_related_links_render",
       (await p.getByTestId("related-debug-report").count()) > 0 &&
         (await p.getByTestId("related-jwt-decoder").count()) > 0 &&
-        (await p.getByTestId("related-json-workbench").count()) > 0
+        (await p.getByTestId("related-url-parser").count()) > 0 &&
+        (await p.getByTestId("related-json-workbench").count()) === 0
     );
     check("curl_converter_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
     check("curl_converter_copy_disabled_when_empty", await p.getByTestId("curl-converter-copy").isDisabled().catch(() => false));
@@ -3198,6 +3202,232 @@ const data = await response.text();`;
         JSON.stringify({ overflow, me: me.slice(0, 2) })
       );
       await mp.screenshot({ path: `${SHOT_DIR}/38-curl-converter-mobile.png`, fullPage: true });
+      await mp.close();
+    }
+  }
+
+  // ---- T-204: URL Parser and Query String Editor ----
+  {
+    const FULL_URL = "https://u:p@example.com:8080/a/b?x=1&y=%20z#frag";
+    const SAMPLE = "https://example.com/reports/2026?format=json&token=abc123def&tag=live&tag=ops#summary";
+
+    const { p, errors } = await newCheckedPage(context);
+    const requests = [];
+    p.on("request", (r) => requests.push(r.url()));
+    await p.goto(BASE + "url-parser/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(250);
+
+    const input = p.getByTestId("url-parser-input");
+    const status = p.getByTestId("url-parser-status");
+    const built = () => p.getByTestId("url-parser-output").innerText();
+    const cards = () => p.getByTestId("url-parser-parts").innerText();
+    const warnText = () => p.getByTestId("url-parser-warnings").innerText().catch(() => "");
+
+    const h1 = p.getByRole("heading", { level: 1 });
+    check("url_parser_loads", (await h1.isVisible().catch(() => false)) && /URL Parser/.test(await h1.innerText()), await h1.innerText());
+    check("url_parser_in_sidebar", await p.getByTestId("nav-url-parser").isVisible().catch(() => false));
+    check("url_parser_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
+    check("url_parser_copy_disabled_when_empty", await p.getByTestId("url-parser-copy").isDisabled().catch(() => false));
+
+    // The spec's worked example, split and rebuilt byte for byte.
+    await input.fill(FULL_URL);
+    await p.waitForTimeout(350);
+    const partsText = await cards();
+    check(
+      "url_parser_main",
+      (await built()) === FULL_URL &&
+        partsText.includes("example.com") &&
+        partsText.includes("8080") &&
+        partsText.includes("#frag") &&
+        /PROTOCOL[\s\S]*https:/i.test(partsText),
+      JSON.stringify({ built: await built(), partsText })
+    );
+    check("url_parser_segments", /1\.\s*a[\s\S]*2\.\s*b/.test(await p.locator("main").innerText()), "segments listed");
+    check("url_parser_status_valid", (await status.getAttribute("data-status")) === "valid", await status.innerText());
+
+    // The spec says this URL yields exactly one warning: the credentials.
+    const w = await warnText();
+    const wLines = w.split("\n").filter((line) => line.trim() !== "");
+    check("url_parser_warnings", /username\/password/.test(w) && wLines.length === 1, JSON.stringify(wLines));
+    check("url_parser_credential_card", /u[\s\S]*:p/.test(await p.locator("main").innerText()), "credentials shown");
+
+    // Query table: 2 rows for x and y, with y decoded to " z".
+    check("url_parser_rows", (await p.getByLabel("Query parameter 1 name").inputValue()) === "x" && (await p.getByLabel("Query parameter 2 value").inputValue()) === " z", "row contents");
+
+    // Editing a value rebuilds the URL.
+    await p.getByLabel("Query parameter 1 value").fill("42");
+    await p.waitForTimeout(200);
+    check("url_parser_edit_value", (await built()).includes("x=42"), await built());
+    check("url_parser_undo_visible", await p.getByTestId("url-parser-reset").isVisible().catch(() => false));
+    await p.getByTestId("url-parser-reset").click();
+    await p.waitForTimeout(200);
+    check("url_parser_undo_restores", (await built()) === FULL_URL, await built());
+
+    // Adding and removing parameters.
+    await p.getByTestId("url-parser-add").click();
+    await p.waitForTimeout(150);
+    await p.getByLabel("Query parameter 3 name").fill("mode");
+    await p.getByLabel("Query parameter 3 value").fill("fast");
+    await p.waitForTimeout(200);
+    check("url_parser_add_param", (await built()).includes("mode=fast"), await built());
+    await p.getByTestId("url-parser-delete-2").click();
+    await p.waitForTimeout(200);
+    check("url_parser_delete_param", !(await built()).includes("mode=fast"), await built());
+
+    // Copy gives back exactly the rebuilt URL.
+    await p.getByTestId("url-parser-copy").click();
+    await p.waitForTimeout(200);
+    const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    check("url_parser_copy", clip === FULL_URL, JSON.stringify(clip));
+
+    // The warning has to follow the EDITED table. Renaming a harmless key to a
+    // secret-like name must raise it, and renaming back must clear it.
+    await p.getByLabel("Query parameter 1 name").fill("token");
+    await p.waitForTimeout(300);
+    check("url_parser_warn_tracks_edits", /Query parameter 'token' looks like a secret\./.test(await warnText()), await warnText());
+    await p.getByLabel("Query parameter 1 name").fill("x");
+    await p.waitForTimeout(300);
+    check("url_parser_warning_clears_after_edit", !/looks like a secret/.test(await warnText()), await warnText());
+
+    // Editing a value and then pasting a different URL must not carry the edit over.
+    await p.getByLabel("Query parameter 1 value").fill("99");
+    await p.waitForTimeout(250);
+    check("url_parser_edit_before_url_change", (await built()).includes("x=99"), await built());
+    await input.fill(SAMPLE);
+    await p.waitForTimeout(400);
+    check("url_parser_no_stale_edits_across_urls", (await built()) === SAMPLE && !(await built()).includes("99"), await built());
+
+    // Repeated parameters keep their order and count rather than collapsing.
+    await input.fill("https://example.com/f?a=1");
+    await p.waitForTimeout(350);
+    await p.getByTestId("url-parser-add").click();
+    await p.getByLabel("Query parameter 2 name").fill("a");
+    await p.getByLabel("Query parameter 2 value").fill("2");
+    await p.waitForTimeout(300);
+    const dupBuilt = await built();
+    check(
+      "url_parser_duplicate_after_edit",
+      dupBuilt === "https://example.com/f?a=1&a=2" && /Duplicate parameter 'a'\./.test(await warnText()),
+      JSON.stringify({ dupBuilt, warn: await warnText() })
+    );
+
+    // The spec's secret + duplicate pair, on a URL that has both.
+    await input.fill(SAMPLE);
+    await p.waitForTimeout(400);
+    const w2 = await warnText();
+    check(
+      "url_parser_warns_secret_and_duplicate",
+      /Query parameter 'token' looks like a secret\./.test(w2) && /Duplicate parameter 'tag'\./.test(w2),
+      JSON.stringify(w2)
+    );
+    check("url_parser_sample_rebuilds_identically", (await built()) === SAMPLE, await built());
+
+    // Invalid and unusual input.
+    await input.fill("not a url");
+    await p.waitForTimeout(300);
+    check(
+      "url_parser_error",
+      (await status.getAttribute("data-status")) === "invalid" && /isn't a valid URL/.test(await status.innerText()),
+      await status.innerText()
+    );
+    // Recovery: a valid URL after a bad one is fully parsed again, not left blank.
+    await input.fill(FULL_URL);
+    await p.waitForTimeout(400);
+    check(
+      "url_parser_recovers_after_error",
+      (await status.getAttribute("data-status")) === "valid" && (await built()) === FULL_URL && (await p.getByLabel("Query parameter 2 value").inputValue()) === " z",
+      JSON.stringify({ status: await status.innerText(), built: await built() })
+    );
+    await input.fill("localhost:3000");
+    await p.waitForTimeout(300);
+    check("url_parser_localhost", (await cards()).includes("localhost") && (await cards()).includes("3000"), await cards());
+    await input.fill("example.com/path");
+    await p.waitForTimeout(300);
+    check("url_parser_schemeless", (await built()) === "https://example.com/path", await built());
+
+    await p.getByTestId("btn-url-parser-clear").click();
+    await p.waitForTimeout(250);
+    check("url_parser_clear", (await status.getAttribute("data-status")) === "empty" && (await input.inputValue()) === "");
+
+    // Home detection and hand-off.
+    await p.goto(BASE, { waitUntil: "networkidle" });
+    await p.getByTestId("home-paste").fill("https://shop.example.com/cart?sku=A1&qty=2");
+    await p.waitForTimeout(500);
+    check("url_parser_home_detects", await p.getByTestId("home-suggest-url-parser").isVisible().catch(() => false));
+    await p.getByTestId("home-suggest-url-parser").click();
+    await p.waitForTimeout(700);
+    check(
+      "url_parser_handoff_parses",
+      /url-parser/.test(p.url()) && (await status.getAttribute("data-status")) === "valid" && (await built()).includes("sku=A1"),
+      JSON.stringify({ url: p.url(), built: await built() })
+    );
+
+    // curl-converter's related list now points here, as the task requires.
+    await p.goto(BASE + "curl-converter/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(300);
+    check("curl_converter_related_url_parser", (await p.getByTestId("related-url-parser").count()) > 0, "related link swapped in");
+
+    // Keyboard reachability across the table controls.
+    await p.goto(BASE + "url-parser/", { waitUntil: "networkidle" });
+    await p.getByTestId("btn-url-parser-sample").click();
+    await p.waitForTimeout(400);
+    await input.click();
+    const seen = new Set();
+    for (let i = 0; i < 16; i++) {
+      await p.keyboard.press("Tab");
+      seen.add(await p.evaluate(() => {
+        const el = document.activeElement;
+        return el ? `${el.tagName}:${el.getAttribute("data-testid") || el.getAttribute("aria-label") || ""}` : "none";
+      }));
+    }
+    check("url_parser_keyboard_traversal", seen.size >= 6, JSON.stringify([...seen]));
+
+    check("url_parser_no_console_errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)));
+    const offOrigin = requests.filter((u) => /^https?:\/\//.test(u) && !u.startsWith(BASE));
+    check("url_parser_requests_stay_local", offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 5)));
+    await p.screenshot({ path: `${SHOT_DIR}/39-url-parser-dark.png` });
+    await p.close();
+
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    for (const theme of ["light", "dark"]) {
+      const { p: tp, errors: te } = await newCheckedPage(context);
+      await tp.goto(BASE + "url-parser/", { waitUntil: "domcontentloaded" });
+      await tp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await tp.reload({ waitUntil: "networkidle" });
+      await tp.getByTestId("btn-url-parser-sample").click();
+      await tp.waitForTimeout(450);
+      await tp.evaluate(axeSource);
+      const violations = await tp.evaluate(async () => {
+        const r = await window.axe.run(document, { resultTypes: ["violations"] });
+        return r.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
+      });
+      const shown = await tp.getByTestId("url-parser-output").innerText();
+      check(
+        `url_parser_${theme}_populated`,
+        shown === SAMPLE && te.length === 0 && violations.length === 0,
+        JSON.stringify({ shown, violations, te: te.slice(0, 2) })
+      );
+      await tp.screenshot({ path: `${SHOT_DIR}/40-url-parser-${theme}.png` });
+      await tp.close();
+    }
+    {
+      const { p: mp, errors: me } = await newCheckedPage(context);
+      await mp.setViewportSize({ width: 375, height: 812 });
+      await mp.goto(BASE + "url-parser/", { waitUntil: "networkidle" });
+      await mp.getByTestId("btn-url-parser-sample").click();
+      await mp.waitForTimeout(450);
+      const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check(
+        "url_parser_mobile_usable",
+        (await mp.getByTestId("url-parser-input").isVisible()) &&
+          (await mp.getByTestId("url-parser-table").isVisible()) &&
+          overflow <= 1 &&
+          me.length === 0,
+        JSON.stringify({ overflow, me: me.slice(0, 2) })
+      );
+      await mp.screenshot({ path: `${SHOT_DIR}/41-url-parser-mobile.png`, fullPage: true });
       await mp.close();
     }
   }

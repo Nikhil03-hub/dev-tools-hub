@@ -124,6 +124,39 @@ describe("detectInput", () => {
     expect(performance.now() - start).toBeLessThan(300);
   });
 
+  describe("URL (T-204)", () => {
+    it("detects a bare http(s) URL as the top suggestion", () => {
+      const out = detectInput("https://example.com/v1/items?page=2");
+      expect(out[0]).toMatchObject({ toolId: "url-parser", confidence: 0.8 });
+    });
+
+    it("stays below the cURL rules when the URL is part of a command", () => {
+      const out = detectInput("curl https://api.example.com/v1/me -H 'accept: application/json'");
+      expect(out[0].toolId).toBe("debug-report");
+      expect(out.some((d) => d.toolId === "url-parser")).toBe(false);
+    });
+
+    it("does not fire on a log line that merely mentions a URL", () => {
+      const out = detectInput("2026-10-25T10:00:00 GET https://api.example.com/v1/items 500 in 42ms");
+      expect(out.some((d) => d.toolId === "url-parser")).toBe(false);
+    });
+
+    it("does not fire on a multi-line paste", () => {
+      const out = detectInput("https://a.example.com/one\nhttps://b.example.com/two");
+      expect(out.some((d) => d.toolId === "url-parser")).toBe(false);
+    });
+
+    it("still offers the URL for a URL that also looks percent-encoded", () => {
+      const out = detectInput("https://example.com/s?q=a%20b%20c%20d");
+      expect(out[0].toolId).toBe("url-parser");
+      expect(out.some((d) => d.toolId === "encode-generate")).toBe(true);
+    });
+
+    it("ignores schemeless text", () => {
+      expect(detectInput("localhost:3000").some((d) => d.toolId === "url-parser")).toBe(false);
+    });
+  });
+
   describe("YAML (T-201)", () => {
     const hasYaml = (text: string) => detectInput(text).some((d) => d.toolId === "yaml-json" && d.confidence === 0.65);
 

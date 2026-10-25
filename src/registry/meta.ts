@@ -252,7 +252,24 @@ export const TOOL_META: ToolMeta[] = [
           a: "Method, URL, headers, data/body, basic auth (-u) and cookies (-b). Anything else is listed as a note.",
         },
       ],
-      related: ["debug-report", "jwt-decoder", "json-workbench"],
+      related: ["debug-report", "jwt-decoder", "url-parser"],
+    },
+  },
+  {
+    id: "url-parser",
+    slug: "url-parser",
+    title: "URL Parser and Query String Editor",
+    navTitle: "URL Parser",
+    description:
+      "Split a URL into protocol, host, path, query parameters and fragment, edit parameters in a table, and rebuild the encoded URL.",
+    category: "web",
+    keywords: ["url", "query string", "parameters", "parse", "decode", "uri", "utm"],
+    icon: "Link",
+    status: "new",
+    docs: {
+      howTo: ["Paste a URL.", "Edit, add or remove query parameters in the table.", "Copy the rebuilt URL."],
+      faq: [{ q: "Does it follow the link?", a: "No. It only parses the text; nothing is requested." }],
+      related: ["encode-generate", "curl-converter", "debug-report"],
     },
   },
 ];

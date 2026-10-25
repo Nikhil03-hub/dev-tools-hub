@@ -195,3 +195,18 @@ GitHub reported **1 open moderate dependency vulnerability on the default branch
 **Open items, unchanged in status:** the `region`/moderate axe finding on all nine tool pages (shared `ToolLayout`; recorded in `reports/T-201.md`), production headers and real 404 behaviour, Firefox/Safari, screen-reader verification of the palette focus handoff, the 5.15:1 vs 5.2:1 internal-target exception, the Tailwind v4 decision behind three moderate dev-only advisories, and **Go output from the cURL converter is unvalidated** because no Go toolchain is installed here.
 
 **Next ready task:** T-204 URL parser + query-string editor (`tasks/P2_tools.md`), dependency T-203 → DONE.
+
+---
+
+## Addendum — T-204 URL Parser shipped on `v3` (2026-10-25, late)
+
+**Gate state on the shipped tree, all measured on it:** `npm run check` PASS exit 0 — 186 unit tests (9 files), `check:registry` 10 tools, boundaries 23 pure files, `verify:lib`/`verify:debugkit` ALL PASS, build + budgets OK, 13 URLs generated. `npm run test:e2e` PASS **516 / FAIL 0** exit 0, no console errors; the reconciliation is 477 (the T-203 tree) + 36 `url_parser_*` + 2 `a11y_url-parser_*` + 1 `curl_converter_related_url_parser`. Six targeted mutations, each breaking exactly its own test, each restored byte-identically.
+
+**Commit layout:** the pure core went in first (`facf7ac`) and the UI, wiring, e2e and docs follow in the next commit, mirroring how T-201 was split. `origin/v3` was `582b759` before this task's commits.
+
+**Two things worth carrying forward.**
+
+1. A mutation that *passes* is a finding, not a success. Disabling the protocol-relative branch left all 30 tests green, because `//example.com/x` is handled twice over and the URL parser collapses the extra slashes. The branch was untested rather than wrong; `//localhost:3000/h` (which no other path can reach) made it load-bearing and the mutation then failed as intended. Prefer adding the missing test to deleting the branch.
+2. Windows argument quoting is a live hazard for scripted evidence: Git Bash strips embedded `"` from arguments handed to `node -e`, so a mutation pattern containing `"//"` silently never matched and reported a false "no effect". Anchor such patterns on quote-free substrings, and always assert the pattern was found.
+
+**Next task: T-205 Cron Explainer** (`tasks/P2_tools.md`). Both dependencies it needs (`cronstrue@3.38.0`, `croner@10.0.1`, MIT, zero transitive) are already approved for T-205 in `DEPENDENCIES.md` and are **not yet installed** — no package.json change was made while T-204 was in flight.
