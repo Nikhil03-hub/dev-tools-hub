@@ -8,7 +8,11 @@ name: ci
 
 on:
   push:
-    branches: [master]
+    # `v3` is the published review branch. Running the same job there means the
+    # branch under review carries its own CI verdict instead of relying on
+    # local-only evidence. Master's behaviour is unchanged and this adds no
+    # new steps, so it cannot introduce a flakier gate than already exists.
+    branches: [master, v3]
   pull_request:
 
 permissions:
