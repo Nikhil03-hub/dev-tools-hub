@@ -14,6 +14,7 @@ const LOADERS: Record<string, () => Promise<{ default: ToolComponent }>> = {
   "timestamp-converter": () => import("../tools/timestamp/TimestampConverterApp"),
   "encode-generate": () => import("../tools/generators/GeneratorsApp"),
   "yaml-json": () => import("../tools/yaml/YamlJsonApp"),
+  "text-diff": () => import("../tools/diff/TextDiffApp"),
 };
 
 export const TOOLS: ToolEntry[] = TOOL_META.map((m) => {

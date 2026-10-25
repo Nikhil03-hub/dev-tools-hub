@@ -199,4 +199,30 @@ export const TOOL_META: ToolMeta[] = [
       related: ["json-workbench", "debug-report"],
     },
   },
+  {
+    id: "text-diff",
+    slug: "text-diff",
+    title: "Text Diff Checker",
+    navTitle: "Text Diff",
+    description:
+      "Compare two texts line by line, word by word or character by character, side by side or inline. Export a .patch file. Nothing is uploaded.",
+    category: "text",
+    keywords: ["diff", "compare", "difference", "patch", "changes", "merge"],
+    icon: "FileDiff",
+    status: "new",
+    docs: {
+      howTo: [
+        "Paste the original text on the left and the changed text on the right.",
+        "Pick lines, words or characters, and side-by-side or inline view.",
+        "Download a unified .patch if you need one.",
+      ],
+      faq: [
+        {
+          q: "How big can the texts be?",
+          a: "Line mode handles tens of thousands of lines. Very different large texts may stop after 2 seconds and ask you to narrow them down.",
+        },
+      ],
+      related: ["json-workbench", "regex-tester"],
+    },
+  },
 ];

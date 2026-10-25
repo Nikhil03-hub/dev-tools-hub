@@ -174,8 +174,10 @@ function measureHighlightContrast(rootSelector) {
   return { rows, uaBlackMark: rows.some((r) => r.tag === "mark" && r.color === "rgb(0, 0, 0)") };
 }
 
+let browser;
+
 async function main() {
-  const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+  browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const page = await context.newPage();
 
@@ -2042,7 +2044,7 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    // Every route the product actually ships: 7 tools, home, and all three
+    // Every route the product actually ships: 8 tools, home, and all three
     // static pages including the not-found experience, which the first pass
     // omitted along with /about/.
     const PAGES = [
@@ -2057,6 +2059,7 @@ async function main() {
       ["encode-generate/", "encode-generate"],
       ["debug-report/", "debug-report"],
       ["yaml-to-json/", "yaml-to-json"],
+      ["text-diff/", "text-diff"],
     ];
     for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
@@ -2734,6 +2737,247 @@ async function main() {
     }
   }
 
+  // ---- T-202: Text Diff ----
+  {
+    const A_SPEC = "a\nb\nc\n";
+    const B_SPEC = "a\nB\nc\nd\n";
+    // Derived once from unifiedPatch() and hand-checked against the spec's patch
+    // shape; the clipboard is compared against it byte for byte.
+    const SAMPLE_PATCH =
+      "===================================================================\n--- original.txt\n+++ changed.txt\n@@ -1,4 +1,5 @@\n line 1\n-line 2\n+line two\n line 3\n shared tail\n+line 5\n";
+    const clipText = (s) => (typeof s === "string" ? s.replace(/\r\n/g, "\n") : s);
+
+    const { p, errors } = await newCheckedPage(context);
+    const requests = [];
+    p.on("request", (r) => requests.push(r.url()));
+
+    const setVal = (side, text) =>
+      p.evaluate(
+        ({ side, text }) => {
+          const el = document.querySelector(`[data-testid="text-diff-${side}"]`);
+          Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(el, text);
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+        },
+        { side, text }
+      );
+    const out = p.getByTestId("text-diff-output");
+    const status = p.getByTestId("text-diff-status");
+    const stats = p.getByTestId("text-diff-stats");
+
+    await p.goto(BASE + "text-diff/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(250);
+
+    const h1 = p.getByRole("heading", { level: 1 });
+    check("text_diff_loads", (await h1.isVisible().catch(() => false)) && /Text Diff/i.test(await h1.innerText()), await h1.innerText());
+    check("text_diff_in_sidebar", await p.getByTestId("nav-text-diff").isVisible().catch(() => false));
+    check(
+      "text_diff_related_links_render",
+      (await p.getByTestId("related-json-workbench").count()) > 0 && (await p.getByTestId("related-regex-tester").count()) > 0
+    );
+    check("text_diff_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
+    check("text_diff_copy_disabled_when_empty", await p.getByTestId("text-diff-copy").isDisabled().catch(() => false));
+
+    // Spec example, side by side: which cell is tinted as removed and which added.
+    await setVal("a", A_SPEC);
+    await setVal("b", B_SPEC);
+    await p.waitForTimeout(400);
+    const cells = await p.evaluate(() =>
+      Array.from(document.querySelectorAll('[data-testid="text-diff-output"] td')).map((td) => ({
+        t: td.textContent,
+        c: td.className,
+      }))
+    );
+    const removedCells = cells.filter((x) => x.c.includes("bg-err/15")).map((x) => x.t);
+    const addedCells = cells.filter((x) => x.c.includes("bg-ok/15")).map((x) => x.t);
+    check(
+      "text_diff_main",
+      removedCells.join(",") === "b" && addedCells.join(",") === "B,d" && (await stats.innerText()) === "+2 −1 lines",
+      JSON.stringify({ removedCells, addedCells, stats: await stats.innerText() })
+    );
+    check("text_diff_status_valid", (await status.getAttribute("data-status")) === "valid", await status.innerText());
+
+    // Sample, then the clipboard must carry the exact unified patch.
+    await p.getByTestId("btn-text-diff-sample").click();
+    await p.waitForTimeout(400);
+    await p.getByTestId("text-diff-copy").click();
+    await p.waitForTimeout(200);
+    const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    check("text_diff_copy", clipText(clip) === SAMPLE_PATCH, JSON.stringify(clip).slice(0, 200));
+
+    const dlPromise = p.waitForEvent("download", { timeout: 5000 });
+    await p.getByTestId("text-diff-download").click();
+    const dl = await dlPromise.catch(() => null);
+    const dlName = dl ? await dl.suggestedFilename() : null;
+    check("text_diff_download_patch", dlName === "changes.patch", JSON.stringify(dlName));
+
+    // Inline view strikes the removed text, per the spec's UI clause.
+    await p.getByRole("radio", { name: "Inline" }).click();
+    await p.waitForTimeout(250);
+    const struck = await p.evaluate(() =>
+      Array.from(document.querySelectorAll('[data-testid="text-diff-output"] span'))
+        .filter((s) => s.className.includes("line-through"))
+        .map((s) => s.textContent)
+    );
+    check("text_diff_inline_strikes_removed", struck.join("") === "line 2\n", JSON.stringify(struck));
+    await p.getByRole("radio", { name: "Side by side" }).click();
+    await p.waitForTimeout(250);
+
+    // Word mode.
+    await p.getByRole("radio", { name: "Words" }).click();
+    await setVal("a", "the quick fox");
+    await setVal("b", "the slow fox");
+    await p.waitForTimeout(400);
+    const wordCells = await p.evaluate(() =>
+      Array.from(document.querySelectorAll('[data-testid="text-diff-output"] span')).map((s) => ({ t: s.textContent, c: s.className }))
+    );
+    check(
+      "text_diff_word_mode",
+      wordCells.some((x) => x.t === "quick" && x.c.includes("bg-err/15")) &&
+        wordCells.some((x) => x.t === "slow" && x.c.includes("bg-ok/15")) &&
+        (await stats.innerText()) === "+1 −1 words",
+      JSON.stringify(wordCells)
+    );
+
+    // Character mode counts characters.
+    await p.getByRole("radio", { name: "Characters" }).click();
+    await setVal("a", "abcd");
+    await setVal("b", "abXY");
+    await p.waitForTimeout(400);
+    check("text_diff_char_mode", (await stats.innerText()) === "+2 −2 characters", await stats.innerText());
+
+    // The documented limit, shown as an error rather than a silent truncation.
+    await setVal("a", "x".repeat(50_001));
+    await setVal("b", "x");
+    await p.waitForTimeout(500);
+    const limitText = await status.innerText();
+    check(
+      "text_diff_error",
+      (await status.getAttribute("data-status")) === "invalid" && /Character mode is limited to 50,000 characters per side\./.test(limitText),
+      JSON.stringify(limitText)
+    );
+    check("text_diff_error_renders_no_diff", (await out.locator("td").count()) === 0 && (await out.locator("span").count()) === 0);
+
+    // Ignore whitespace actually changes the verdict.
+    await p.getByRole("radio", { name: "Lines" }).click();
+    await setVal("a", "  a\n");
+    await setVal("b", "a\n");
+    await p.waitForTimeout(400);
+    check("text_diff_ws_before", /Differences found/.test(await status.innerText()), await status.innerText());
+    await p.getByRole("switch", { name: "Ignore whitespace" }).click();
+    await p.waitForTimeout(400);
+    check("text_diff_ignore_whitespace", /identical/.test(await status.innerText()), await status.innerText());
+    check("text_diff_download_disabled_when_identical", await p.getByTestId("text-diff-download").isDisabled());
+    await p.getByRole("switch", { name: "Ignore whitespace" }).click();
+    await p.waitForTimeout(300);
+
+    // Swap reverses which side holds the change.
+    await setVal("a", A_SPEC);
+    await setVal("b", B_SPEC);
+    await p.waitForTimeout(400);
+    await p.getByTestId("btn-text-diff-swap").click();
+    await p.waitForTimeout(400);
+    check("text_diff_swap", (await stats.innerText()) === "+1 −2 lines", await stats.innerText());
+
+    // Past the shared threshold nothing recomputes until Compare, and the row cap
+    // keeps a 55,000-line document renderable.
+    const shared = "same line\n".repeat(55_000);
+    await setVal("a", shared + "old tail\n");
+    await setVal("b", shared + "new tail\n");
+    await p.waitForTimeout(800);
+    check(
+      "text_diff_manual_button",
+      (await p.getByTestId("text-diff-run").isVisible().catch(() => false)) && (await status.getAttribute("data-status")) === "idle",
+      await status.innerText()
+    );
+    check("text_diff_manual_no_output", (await out.locator("td").count()) === 0);
+    await p.getByTestId("text-diff-run").click();
+    await p.waitForTimeout(4000);
+    check(
+      "text_diff_manual_converts_on_demand",
+      (await status.getAttribute("data-status")) === "valid" && (await stats.innerText()) === "+1 −1 lines",
+      await status.innerText()
+    );
+    check(
+      "text_diff_row_cap",
+      /Showing the first 2,000 of 55,002 rows/.test(await out.innerText()),
+      JSON.stringify((await out.innerText()).slice(-160))
+    );
+
+    await p.getByTestId("btn-text-diff-clear").click();
+    await p.waitForTimeout(300);
+    check(
+      "text_diff_clear",
+      (await status.getAttribute("data-status")) === "empty" &&
+        (await p.getByTestId("text-diff-a").inputValue()) === "" &&
+        (await p.getByTestId("text-diff-b").inputValue()) === "",
+      await status.innerText()
+    );
+
+    // Keyboard: focus must be able to move through the controls and out of both textareas.
+    await p.getByTestId("text-diff-a").click();
+    const seen = new Set();
+    for (let i = 0; i < 12; i++) {
+      await p.keyboard.press("Tab");
+      seen.add(await p.evaluate(() => {
+        const el = document.activeElement;
+        return el ? `${el.tagName}:${el.getAttribute("data-testid") || el.getAttribute("aria-label") || ""}` : "none";
+      }));
+    }
+    check("text_diff_keyboard_traversal", seen.size >= 5, JSON.stringify([...seen]));
+
+    check("text_diff_no_console_errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)));
+    const offOrigin = requests.filter((u) => /^https?:\/\//.test(u) && !u.startsWith(BASE));
+    check("text_diff_requests_stay_local", offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 5)));
+    await p.screenshot({ path: `${SHOT_DIR}/33-text-diff-dark.png` });
+    await p.close();
+
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    for (const theme of ["light", "dark"]) {
+      const { p: tp, errors: te } = await newCheckedPage(context);
+      await tp.goto(BASE + "text-diff/", { waitUntil: "domcontentloaded" });
+      await tp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await tp.reload({ waitUntil: "networkidle" });
+      await tp.getByTestId("btn-text-diff-sample").click();
+      await tp.waitForTimeout(400);
+      const shownText = await tp.getByTestId("text-diff-output").innerText();
+      // Same impact filter as the route gate; the shared `region`/moderate finding
+      // is recorded in reports/T-201.md and is not this tool's to fix.
+      await tp.evaluate(axeSource);
+      const violations = await tp.evaluate(async () => {
+        const r = await window.axe.run(document, { resultTypes: ["violations"] });
+        return r.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
+      });
+      check(
+        `text_diff_${theme}_populated`,
+        /line two/.test(shownText) && /−1 lines/.test(await tp.getByTestId("text-diff-stats").innerText()) && te.length === 0 && violations.length === 0,
+        JSON.stringify({ violations, te: te.slice(0, 2) })
+      );
+      await tp.screenshot({ path: `${SHOT_DIR}/34-text-diff-${theme}.png` });
+      await tp.close();
+    }
+    {
+      const { p: mp, errors: me } = await newCheckedPage(context);
+      await mp.setViewportSize({ width: 375, height: 812 });
+      await mp.goto(BASE + "text-diff/", { waitUntil: "networkidle" });
+      await mp.getByTestId("btn-text-diff-sample").click();
+      await mp.waitForTimeout(400);
+      const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check(
+        "text_diff_mobile_usable",
+        (await mp.getByTestId("text-diff-a").isVisible()) &&
+          (await mp.getByTestId("text-diff-b").isVisible()) &&
+          (await mp.getByTestId("text-diff-output").isVisible()) &&
+          overflow <= 1 &&
+          me.length === 0,
+        JSON.stringify({ overflow, me: me.slice(0, 2) })
+      );
+      await mp.screenshot({ path: `${SHOT_DIR}/35-text-diff-mobile.png`, fullPage: true });
+      await mp.close();
+    }
+  }
+
   await browser.close();
 
   console.log("\n===== RESULTS =====");
@@ -2755,7 +2999,14 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error("FATAL", e);
-  process.exitCode = 1;
-});
+main()
+  .catch((e) => {
+    console.error("FATAL", e);
+    process.exitCode = 1;
+  })
+  // A throw before `browser.close()` left the child process holding the event
+  // loop: the suite printed FATAL and then hung, keeping port 4173 occupied and
+  // reporting nothing. Always release the browser so a failure fails fast.
+  .finally(() => {
+    if (browser) browser.close().catch(() => {});
+  });
