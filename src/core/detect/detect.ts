@@ -49,6 +49,58 @@ function looksLikeCron(text: string): boolean {
   return fields.every((f) => CRON_FIELD.test(f)) && fields.some((f) => CRON_STRUCTURED.test(f));
 }
 
+// T-206 detector. The spec's rule is "at least 2 of the first 5 lines share a
+// field count of 2 or more". Two tightenings keep prose, logs and pretty JSON
+// out of a CSV suggestion, both documented in docs/v3/reports/T-206.md: records
+// are counted with quotes honoured (so a value containing a newline is still
+// one record) and every inspected record has to agree, not just two of them.
+// The second half of the guard is typographic — in English a comma is always
+// followed by a space, while a CSV export has the next field straight after it,
+// so a file whose delimiters are *all* followed by spaces is treated as prose.
+function scanCsvRecords(text: string, d: string, maxRecords: number): { counts: number[]; tight: boolean } {
+  const counts: number[] = [];
+  let fields = 1;
+  let quoted = false;
+  let hasContent = false;
+  let tight = false;
+  const isSpace = (c: string | undefined): boolean => c === " " || c === "\t" || c === "\n" || c === "\r";
+  for (let i = 0; i < text.length && counts.length < maxRecords; i++) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') i++;
+      else if (ch === '"') quoted = false;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+      hasContent = true;
+    } else if (ch === d) {
+      fields++;
+      hasContent = true;
+      if (!isSpace(text[i + 1])) tight = true;
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      if (hasContent) {
+        counts.push(fields);
+        fields = 1;
+        hasContent = false;
+      }
+    } else if (ch !== " ") {
+      hasContent = true;
+    }
+  }
+  if (hasContent && counts.length < maxRecords) counts.push(fields);
+  return { counts, tight };
+}
+
+function looksLikeCsv(text: string): boolean {
+  for (const d of [",", ";", "\t", "|"]) {
+    const { counts, tight } = scanCsvRecords(text, d, 5);
+    if (counts.length >= 2 && tight && counts.every((c) => c >= 2 && c === counts[0])) return true;
+  }
+  return false;
+}
+
 function looksLikeYaml(text: string): boolean {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "" && !YAML_COMMENT.test(l));
   if (lines.length < 2 || !YAML_FIRST.test(lines[0])) return false;
@@ -150,6 +202,12 @@ export function detectInput(text: string, availableIds?: ReadonlySet<string>): D
 
   if (!parsedOk && looksLikeCron(trimmed)) {
     add({ toolId: "cron", confidence: 0.7, label: "Looks like a cron expression" }, 14);
+  }
+
+  // Pretty-printed JSON is structurally a grid of commas, so it is excluded by
+  // shape as well as by having parsed cleanly.
+  if (!parsedOk && !trimmed.startsWith("{") && !trimmed.startsWith("[") && looksLikeCsv(trimmed)) {
+    add({ toolId: "csv-json", confidence: 0.6, label: "Looks like CSV" }, 15);
   }
 
   return found

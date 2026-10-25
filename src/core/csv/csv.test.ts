@@ -459,6 +459,15 @@ describe("jsonToCsv", () => {
     expect(warnings.some((w) => /header row is exported as written/.test(w))).toBe(true);
   });
 
+  it("names warned-about columns in file order, singular or plural", () => {
+    // Regression: the audit noticed row 2's holes after row 1's, which listed
+    // "f, a, b", and one cell was described as "1 cell start with".
+    const warnings = warningsOf(jsonToCsv('[{"a":1,"b":"x,y"},{"f":"=SUM(A1)"}]', OUT()));
+    expect(warnings.some((w) => /Empty cells in a, b, f/.test(w))).toBe(true);
+    expect(warnings.some((w) => /^1 cell starts with = \+ - @ /.test(w))).toBe(true);
+    expect(warnings.some((w) => /^2 cells start with/.test(w))).toBe(false);
+  });
+
   it("writes rows and columns in source order", () => {
     const r = jsonToCsv('[{"z":1,"y":2},{"z":3,"y":4}]', OUT());
     expect(csvOf(r)).toBe("z,y\r\n1,2\r\n3,4");

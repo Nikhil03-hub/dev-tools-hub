@@ -195,7 +195,8 @@ export const TOOL_META: ToolMeta[] = [
           a: "Each document becomes one item of a JSON array, and you get a note saying so.",
         },
       ],
-      // csv-json and toml-json do not exist yet; check:registry requires real ids.
+      // check:registry only accepts ids that already exist, so this list grows
+      // as the data converters land (toml-json is still queued behind T-206).
       related: ["json-workbench", "debug-report"],
     },
   },
@@ -296,6 +297,28 @@ export const TOOL_META: ToolMeta[] = [
         },
       ],
       related: ["timestamp-converter", "regex-tester"],
+    },
+  },
+  {
+    id: "csv-json",
+    slug: "csv-to-json",
+    title: "CSV to JSON Converter (and back)",
+    navTitle: "CSV ⇄ JSON",
+    description:
+      "Convert CSV to JSON and JSON to CSV with delimiter detection, quoted fields, a table preview and protection against spreadsheet formulas.",
+    category: "data",
+    keywords: ["csv", "tsv", "json", "spreadsheet", "excel", "convert", "table"],
+    icon: "Sheet",
+    status: "new",
+    docs: {
+      howTo: ["Paste CSV or a JSON array.", "Check the delimiter and header options.", "Copy or download the result."],
+      faq: [
+        {
+          q: "What is formula protection?",
+          a: "Cells starting with = + - or @ can run as formulas in Excel. When on, such cells get a leading apostrophe in exported CSV.",
+        },
+      ],
+      related: ["json-workbench", "yaml-json"],
     },
   },
 ];

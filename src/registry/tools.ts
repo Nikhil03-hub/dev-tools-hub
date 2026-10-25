@@ -18,6 +18,7 @@ const LOADERS: Record<string, () => Promise<{ default: ToolComponent }>> = {
   "curl-converter": () => import("../tools/curl/CurlConverterApp"),
   "url-parser": () => import("../tools/url/UrlParserApp"),
   "cron": () => import("../tools/cron/CronApp"),
+  "csv-json": () => import("../tools/csv/CsvJsonApp"),
 };
 
 export const TOOLS: ToolEntry[] = TOOL_META.map((m) => {

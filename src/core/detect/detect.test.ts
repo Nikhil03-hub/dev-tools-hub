@@ -200,6 +200,60 @@ describe("detectInput", () => {
     });
   });
 
+  describe("CSV (T-206)", () => {
+    const hasCsv = (text: string) => detectInput(text).some((d) => d.toolId === "csv-json" && d.confidence === 0.6);
+
+    it("detects two-line and longer files on every supported separator", () => {
+      expect(hasCsv("id,name\n1,Ana")).toBe(true);
+      expect(hasCsv("id,name\n1,Ana\n2,Bo")).toBe(true);
+      expect(hasCsv("id;name\n1;Ana\n2;Bo")).toBe(true);
+      expect(hasCsv("id\tname\n1\tAna\n2\tBo")).toBe(true);
+      expect(hasCsv("id|name\n1|Ana\n2|Bo")).toBe(true);
+    });
+
+    it("counts records with quotes honoured", () => {
+      expect(hasCsv('name,note\n"Rivera, Ana",x\nBo,y\nKim,z')).toBe(true);
+      expect(hasCsv('id,note\n1,"line one\nline two"\n2,x')).toBe(true);
+      expect(hasCsv("id,name\r\n1,Ana\r\n2,Bo\r\n")).toBe(true);
+    });
+
+    it("skips blank lines between records", () => {
+      expect(hasCsv("id,name\n\n1,Ana\n\n2,Bo\n")).toBe(true);
+    });
+
+    it("stays quiet on prose, which always puts a space after its commas", () => {
+      expect(hasCsv("Hello, world\nGoodbye, friend")).toBe(false);
+      expect(hasCsv("Hello, world\nGoodbye, friend\nSee you, later")).toBe(false);
+      expect(hasCsv("The report, which late\nwas filed\nby the team, on time")).toBe(false);
+    });
+
+    it("stays quiet on comma-separated logging", () => {
+      expect(
+        hasCsv("2026-10-25T10:00:01 ERROR payment failed, retrying\n2026-10-25T10:00:02 INFO health check ok\n2026-10-25T10:00:03 ERROR db timeout, giving up")
+      ).toBe(false);
+    });
+
+    it("stays quiet on JSON, pretty or not", () => {
+      expect(hasCsv('[\n  {"a": 1,\n   "b": 2},\n  {"a": 3,\n   "b": 4}\n]')).toBe(false);
+      expect(hasCsv("{a: 1,\nb: 2,\nc: 3}")).toBe(false);
+      expect(hasCsv('{"name":"Ana","city":"Madrid"}')).toBe(false);
+    });
+
+    it("does not claim a YAML manifest", () => {
+      const manifest = "# kubernetes-style manifest\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\n";
+      expect(hasCsv(manifest)).toBe(false);
+      expect(detectInput(manifest)[0].toolId).toBe("yaml-json");
+    });
+
+    it("accepts the known cost: a hand-typed file spaced like prose is not detected", () => {
+      expect(hasCsv("name, age\nAna, 30\nBo, 40")).toBe(false);
+    });
+
+    it("ranks a plain file above the weaker suggestions", () => {
+      expect(detectInput("id,name\n1,Ana\n2,Bo")[0].toolId).toBe("csv-json");
+    });
+  });
+
   describe("YAML (T-201)", () => {
     const hasYaml = (text: string) => detectInput(text).some((d) => d.toolId === "yaml-json" && d.confidence === 0.65);
 

@@ -309,6 +309,16 @@ function collectKeys(rows: Record<string, unknown>[]): string[] {
   return columns;
 }
 
+/** Warning lists read as a column list, not as the order the audit happened to
+ *  notice holes in. */
+function inColumnOrder(names: string[], order: string[]): string[] {
+  return [...names].sort((a, b) => {
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    return (ia < 0 ? Number.MAX_SAFE_INTEGER : ia) - (ib < 0 ? Number.MAX_SAFE_INTEGER : ib);
+  });
+}
+
 export function jsonToCsv(text: string, opts: JsonToCsvOptions): Result<JsonToCsvValue> {
   if (text.trim() === "") return emptyInput();
   if (text.length > MAX_INPUT_CHARS) return tooLarge();
@@ -356,6 +366,7 @@ export function jsonToCsv(text: string, opts: JsonToCsvOptions): Result<JsonToCs
   const audit: CellAudit = { nested: [], empty: [], formula: 0, formulaGuarded: 0, headerFormulas: [], protoHeader: false };
 
   let out: string;
+  let columnOrder: string[] = [];
   if (objectRows.length > 0) {
     const columns = collectKeys(objectRows);
     if (columns.length === 0) {
@@ -367,6 +378,7 @@ export function jsonToCsv(text: string, opts: JsonToCsvOptions): Result<JsonToCs
     }
     // A null prototype keeps a "__proto__" column as ordinary data instead of
     // letting the assignment redefine the object's prototype and lose the cell.
+    columnOrder = columns;
     const rows = objectRows.map((row) => {
       const target: Record<string, Cell> = Object.create(null) as Record<string, Cell>;
       for (const name of columns) {
@@ -384,6 +396,7 @@ export function jsonToCsv(text: string, opts: JsonToCsvOptions): Result<JsonToCs
       if (row.length !== arrayRows[0].length) ragged = true;
       return row.map((cell, i) => toCell(cell, `Column ${i + 1}`, opts, audit));
     });
+    columnOrder = Array.from({ length: widest }, (_, i) => `Column ${i + 1}`);
     out = unparse(rows, { delimiter: opts.delimiter });
     if (ragged) {
       warnings.push(`The inner arrays have different lengths (up to ${widest} cells), so some rows end early — CSV has no marker for a missing cell.`);
@@ -394,11 +407,11 @@ export function jsonToCsv(text: string, opts: JsonToCsvOptions): Result<JsonToCs
   }
 
   if (audit.nested.length > 0) {
-    warnings.push(`Nested values in columns ${nameList(audit.nested)} were written as JSON text.`);
+    warnings.push(`Nested values in columns ${nameList(inColumnOrder(audit.nested, columnOrder))} were written as JSON text.`);
   }
   if (audit.empty.length > 0) {
     warnings.push(
-      `Empty cells in ${nameList(audit.empty)} came from a null or from a key that row does not have. CSV cannot keep those apart, and reading the file back gives "".`
+      `Empty cells in ${nameList(inColumnOrder(audit.empty, columnOrder))} came from a null or from a key that row does not have. CSV cannot keep those apart, and reading the file back gives "".`
     );
   }
   if (audit.formula > 0) {
@@ -408,7 +421,7 @@ export function jsonToCsv(text: string, opts: JsonToCsvOptions): Result<JsonToCs
       );
     } else {
       warnings.push(
-        `${audit.formula} cell${audit.formula === 1 ? "" : "s"} start with = + - @ and can run as a formula when the file is opened in a spreadsheet. Turn on Formula protection to prefix them with an apostrophe.`
+        `${audit.formula} cell${audit.formula === 1 ? "" : "s"} ${audit.formula === 1 ? "starts" : "start"} with = + - @ and can run as a formula when the file is opened in a spreadsheet. Turn on Formula protection to prefix them with an apostrophe.`
       );
     }
   }

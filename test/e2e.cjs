@@ -2044,25 +2044,16 @@ async function main() {
   // ---- accessibility (T-109) ----
   {
     const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    // Every route the product actually ships: 11 tools, home, and all three
-    // static pages including the not-found experience, which the first pass
-    // omitted along with /about/.
+    // Every route the product actually ships: home, the static pages, and each
+    // tool page the build contains. The tool half is derived from the same list
+    // the sidebar check uses, so a new tool gets swept for accessibility without
+    // anyone remembering to edit this array.
     const PAGES = [
       ["", "home"],
       ["privacy/", "privacy"],
       ["about/", "about"],
       ["not-a-real-route/", "notfound"],
-      ["json-formatter/", "json-formatter"],
-      ["jwt-decoder/", "jwt-decoder"],
-      ["regex-tester/", "regex-tester"],
-      ["timestamp-converter/", "timestamp-converter"],
-      ["encode-generate/", "encode-generate"],
-      ["debug-report/", "debug-report"],
-      ["yaml-to-json/", "yaml-to-json"],
-      ["text-diff/", "text-diff"],
-      ["curl-converter/", "curl-converter"],
-      ["url-parser/", "url-parser"],
-      ["cron-expression/", "cron-expression"],
+      ...SHIPPED_TOOLS.map((slug) => [`${slug}/`, slug]),
     ];
     for (const [slug, name] of PAGES) {
       for (const theme of ["light", "dark"]) {
@@ -3632,6 +3623,385 @@ const data = await response.text();`;
         JSON.stringify({ overflow, me: me.slice(0, 2) })
       );
       await mp.screenshot({ path: `${SHOT_DIR}/44-cron-mobile.png`, fullPage: true });
+      await mp.close();
+    }
+  }
+
+  // ---- T-206: CSV ⇄ JSON ----
+  {
+    const { p, errors } = await newCheckedPage(context);
+    const requests = [];
+    p.on("request", (r) => requests.push(r.url()));
+    await p.goto(BASE + "csv-to-json/", { waitUntil: "networkidle" });
+    await p.waitForTimeout(250);
+
+    const status = p.getByTestId("csv-json-status");
+    const input = p.getByTestId("csv-json-input").locator("textarea");
+    // React tracks the value on the instance, so a megabyte-scale paste has to go
+    // through the native setter plus an input event (fill() timed out on it).
+    const setValue = (text) =>
+      p.evaluate((v) => {
+        const ta = document.querySelector('[data-testid="csv-json-input"] textarea');
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(ta, v);
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+      }, text);
+    const readOutput = async () => {
+      const el = p.getByTestId("csv-json-output").locator(".cm-content");
+      if ((await el.count()) === 0) return null;
+      return (await el.innerText()).replace(/\n+$/, "");
+    };
+    const notes = async () => {
+      const el = p.getByTestId("csv-json-notes");
+      return (await el.count()) === 0 ? "" : await el.innerText();
+    };
+    const summary = async () => {
+      const el = p.getByTestId("csv-json-summary");
+      return (await el.count()) === 0 ? "" : await el.innerText();
+    };
+    const toRadio = (name) => p.getByTestId("csv-json-direction").getByRole("radio", { name }).click();
+    const tabRadio = (name) => p.getByTestId("csv-json-tabs").getByRole("radio", { name }).click();
+
+    const h1 = p.getByRole("heading", { level: 1 });
+    check(
+      "csv_json_loads",
+      (await h1.isVisible().catch(() => false)) && /CSV to JSON Converter/.test(await h1.innerText()),
+      await h1.innerText()
+    );
+    check("csv_json_in_sidebar", await p.getByTestId("nav-csv-json").isVisible().catch(() => false));
+    check(
+      "csv_json_related_links_render",
+      (await p.getByTestId("related-json-workbench").count()) > 0 && (await p.getByTestId("related-yaml-json").count()) > 0
+    );
+    check("csv_json_empty_status", (await status.getAttribute("data-status")) === "empty", await status.innerText());
+    check("csv_json_copy_disabled_when_empty", await p.getByTestId("csv-json-copy").isDisabled().catch(() => false));
+
+    // The spec's worked example, one for one: quoted comma stays inside one value
+    // and every cell remains text while Detect numbers is off.
+    await input.fill('name,age\n"Smith, J",42\nAnn,7\n');
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_spec_example",
+      (await readOutput()) === '[\n  {\n    "name": "Smith, J",\n    "age": "42"\n  },\n  {\n    "name": "Ann",\n    "age": "7"\n  }\n]',
+      JSON.stringify(await readOutput())
+    );
+    check("csv_json_status_valid", (await status.getAttribute("data-status")) === "valid", await status.innerText());
+    check("csv_json_summary_counts", /2 rows · delimiter Comma · 2 named columns/.test(await summary()), await summary());
+
+    // The sample carries the awkward cases at once: a quoted comma, a doubled
+    // quote, a value with a newline, a leading zero and a formula-looking cell.
+    await p.getByTestId("btn-csv-json-sample").click();
+    await p.waitForTimeout(400);
+    const sampleOut = (await readOutput()) || "";
+    check(
+      "csv_json_sample_values_survive",
+      sampleOut.includes('"Rivera, Ana"') &&
+        sampleOut.includes('said \\"hi\\"') &&
+        sampleOut.includes('"line one') &&
+        sampleOut.includes('"00123"') &&
+        sampleOut.includes("-=SUM(A1)"),
+      JSON.stringify(sampleOut.slice(0, 160))
+    );
+    check("csv_json_sample_row_count", /3 rows · delimiter Comma · 4 named columns/.test(await summary()), await summary());
+
+    // Table tab, first rows of the same data.
+    await tabRadio("Table");
+    await p.waitForTimeout(250);
+    const table = p.getByTestId("csv-json-table");
+    check("csv_json_table_visible", await table.isVisible().catch(() => false));
+    check(
+      "csv_json_table_shape",
+      (await table.locator("thead th").count()) === 4 && (await table.locator("tbody tr").count()) === 3,
+      JSON.stringify({ cols: await table.locator("thead th").count(), rows: await table.locator("tbody tr").count() })
+    );
+    const firstCells = await table.locator("tbody tr").first().locator("td").allInnerTexts();
+    check("csv_json_table_cells", firstCells[0] === "00123" && firstCells[1] === "Rivera, Ana", JSON.stringify(firstCells));
+
+    // Detect numbers is the one option that rewrites data, so it has to say so.
+    await tabRadio("JSON");
+    await p.getByTestId("csv-json-numbers").setChecked(true);
+    await p.waitForTimeout(500);
+    check(
+      "csv_json_detect_numbers_warns",
+      /leading zeroes/.test(await notes()) && ((await readOutput()) || "").includes('"id": 123'),
+      JSON.stringify(await notes())
+    );
+    await p.getByTestId("csv-json-numbers").setChecked(false);
+    await p.waitForTimeout(300);
+
+    // Header row off: positional arrays instead of objects.
+    await p.getByTestId("csv-json-header").setChecked(false);
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_header_off_gives_arrays",
+      ((await readOutput()) || "").startsWith("[\n  [\n") && (await summary()).includes("arrays of values"),
+      JSON.stringify(((await readOutput()) || "").slice(0, 40))
+    );
+    await p.getByTestId("csv-json-header").setChecked(true);
+    await p.waitForTimeout(300);
+
+    // Explicit delimiter beats auto-detection when the data contains commas.
+    await input.fill('a,b;c\n"x,y";2');
+    await p.getByTestId("csv-json-delimiter").selectOption(";");
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_explicit_delimiter",
+      ((await readOutput()) || "").includes('"a,b": "x,y"') && /delimiter Semicolon/.test(await summary()),
+      JSON.stringify({ out: ((await readOutput()) || "").slice(0, 60), s: await summary() })
+    );
+
+    // Duplicate column names are refused, not renamed behind the user's back.
+    await p.getByTestId("csv-json-delimiter").selectOption("auto");
+    await input.fill("a,a\n1,2");
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_duplicate_headers_refused",
+      (await status.getAttribute("data-status")) === "invalid" && /Duplicate column name/.test(await status.innerText()),
+      await status.innerText()
+    );
+    check("csv_json_error_hides_output", (await p.getByTestId("csv-json-output").count()) === 0);
+
+    // …and correcting the input brings the result back, with nothing stale left.
+    await input.fill("a,b\n1,2");
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_recovers_after_fix",
+      (await status.getAttribute("data-status")) === "valid" && (await readOutput()) === '[\n  {\n    "a": "1",\n    "b": "2"\n  }\n]',
+      JSON.stringify(await readOutput())
+    );
+
+    await input.fill("__proto__,b\n1,2");
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_proto_header_refused",
+      (await status.getAttribute("data-status")) === "invalid" && /__proto__/.test(await status.innerText()),
+      await status.innerText()
+    );
+
+    await input.fill("a,b,c\n1,2");
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_short_row_warns",
+      (await status.getAttribute("data-status")) === "valid" && /Too few fields/.test(await notes()),
+      JSON.stringify({ s: await status.innerText(), n: await notes() })
+    );
+
+    // ---- JSON → CSV ----
+    await toRadio("JSON → CSV");
+    await input.fill('[{"a":1,"b":"x,y"},{"a":2,"b":"q\\"z"}]');
+    await p.waitForTimeout(400);
+    const toCsvOut = (await readOutput()) || "";
+    check(
+      "csv_json_to_csv_exact",
+      toCsvOut.replace(/\r/g, "") === 'a,b\n1,"x,y"\n2,"q""z"' && (await notes()) === "",
+      JSON.stringify({ out: toCsvOut, n: await notes() })
+    );
+
+    await input.fill('[{"f":"=SUM(A1)"}]');
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_formula_warns_when_unprotected",
+      ((await readOutput()) || "").includes("=SUM(A1)") && /Formula protection/.test(await notes()),
+      JSON.stringify({ out: await readOutput(), n: await notes() })
+    );
+    await p.getByTestId("csv-json-protect").setChecked(true);
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_formula_protection_on",
+      ((await readOutput()) || "").includes("'=SUM(A1)") && /apostrophe/.test(await notes()),
+      JSON.stringify({ out: await readOutput(), n: await notes() })
+    );
+
+    await input.fill('[{"id":1,"tags":[1,2]}]');
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_nested_values_reported",
+      /Nested values in columns tags were written as JSON text\./.test(await notes()) && ((await readOutput()) || "").includes('"[1,2]"'),
+      JSON.stringify({ out: await readOutput(), n: await notes() })
+    );
+
+    await input.fill('{"a":1}');
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_object_root_rejected",
+      (await status.getAttribute("data-status")) === "invalid" && /array of rows/.test(await status.innerText()),
+      await status.innerText()
+    );
+
+    await input.fill('[{"a":1},]');
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_invalid_json_diagnosed",
+      (await status.getAttribute("data-status")) === "invalid" && /not valid JSON/.test(await status.innerText()),
+      await status.innerText()
+    );
+
+    await input.fill("[]");
+    await p.waitForTimeout(400);
+    check(
+      "csv_json_empty_array_is_honest",
+      (await status.getAttribute("data-status")) === "valid" && /array is empty/.test(await notes()),
+      JSON.stringify({ s: await status.innerText(), n: await notes() })
+    );
+
+    // Copy and download give back the CSV itself. The downloaded file is the only
+    // path that carries the RFC 4180 CRLF endings, so its bytes are checked.
+    await input.fill('[{"a":1,"b":"x,y"}]');
+    await p.waitForTimeout(400);
+    await p.getByTestId("csv-json-copy").click();
+    await p.waitForTimeout(250);
+    const clip = await p.evaluate(() => navigator.clipboard.readText()).catch((e) => `ERR:${e.message}`);
+    check(
+      "csv_json_copy",
+      typeof clip === "string" && clip.replace(/\r/g, "") === 'a,b\n1,"x,y"' && !clip.startsWith("ERR"),
+      JSON.stringify(clip)
+    );
+    const csvDownload = p.waitForEvent("download", { timeout: 5000 });
+    await p.getByTestId("csv-json-download").click();
+    const dlCsv = await csvDownload.catch(() => null);
+    let csvBytes = null;
+    if (dlCsv) {
+      try {
+        csvBytes = require("fs").readFileSync(dlCsv.path());
+      } catch {
+        csvBytes = null;
+      }
+    }
+    check(
+      "csv_json_download_csv_bytes",
+      !!dlCsv && dlCsv.suggestedFilename() === "converted.csv" && csvBytes && csvBytes.toString("utf8") === 'a,b\r\n1,"x,y"',
+      JSON.stringify({ name: dlCsv ? dlCsv.suggestedFilename() : null, body: csvBytes ? csvBytes.toString("utf8") : null })
+    );
+
+    // Back to CSV → JSON, where the download must be a .json file.
+    await toRadio("CSV → JSON");
+    await input.fill("a,b\n1,2");
+    await p.waitForTimeout(400);
+    const jsonDownload = p.waitForEvent("download", { timeout: 5000 });
+    await p.getByTestId("csv-json-download").click();
+    const dlJson = await jsonDownload.catch(() => null);
+    check(
+      "csv_json_download_json_file",
+      !!dlJson && dlJson.suggestedFilename() === "converted.json",
+      dlJson ? dlJson.suggestedFilename() : "no download event"
+    );
+
+    // A paste over the manual threshold converts only on demand, and says when
+    // the input has moved on since the last run.
+    const BIG = "a,b\n" + "1,2\n".repeat(300_000);
+    await setValue(BIG);
+    await p.waitForTimeout(600);
+    check(
+      "csv_json_manual_gate_appears",
+      (await status.getAttribute("data-status")) === "idle" && (await p.getByTestId("csv-json-run").isVisible().catch(() => false)),
+      await status.innerText()
+    );
+    await p.getByTestId("csv-json-run").click();
+    await p.waitForTimeout(1500);
+    check(
+      "csv_json_manual_convert_works",
+      (await status.getAttribute("data-status")) === "valid" && /300,000 rows/.test(await summary()),
+      JSON.stringify({ s: await status.innerText(), sum: await summary() })
+    );
+    await setValue(BIG + "3,4\n");
+    await p.waitForTimeout(600);
+    check(
+      "csv_json_manual_stale_warning",
+      (await p.getByTestId("csv-json-stale").isVisible().catch(() => false)) && /press Convert/.test(await p.getByTestId("csv-json-stale").innerText()),
+      "stale banner present after editing an oversized input"
+    );
+
+    await p.getByTestId("btn-csv-json-clear").click();
+    await p.waitForTimeout(300);
+    check(
+      "csv_json_clear",
+      (await status.getAttribute("data-status")) === "empty" && (await input.inputValue()) === "" && (await p.getByTestId("csv-json-output").count()) === 0
+    );
+
+    // Home detection: a CSV paste suggests this tool, prose does not.
+    await p.goto(BASE, { waitUntil: "networkidle" });
+    await p.getByTestId("home-paste").fill("id,name,note\n1,Ana,x\n2,Bo,y\n3,Kim,z");
+    await p.waitForTimeout(500);
+    check("csv_json_home_detects", await p.getByTestId("home-suggest-csv-json").isVisible().catch(() => false));
+    await p.getByTestId("home-suggest-csv-json").click();
+    await p.waitForTimeout(700);
+    check(
+      "csv_json_handoff_converts",
+      /csv-to-json/.test(p.url()) && (await status.getAttribute("data-status")) === "valid" && (await input.inputValue()).startsWith("id,name,note"),
+      JSON.stringify({ url: p.url(), s: await status.innerText().catch(() => "") })
+    );
+
+    await p.goto(BASE, { waitUntil: "networkidle" });
+    await p.getByTestId("home-paste").fill("Hello, world\nGoodbye, friend\nSee you, later");
+    await p.waitForTimeout(500);
+    check("csv_json_home_ignores_prose", !(await p.getByTestId("home-suggest-csv-json").isVisible().catch(() => false)));
+    await p.getByTestId("home-paste").fill('{"a": 1,\n "b": 2,\n "c": 3}');
+    await p.waitForTimeout(500);
+    check("csv_json_home_ignores_pretty_json", !(await p.getByTestId("home-suggest-csv-json").isVisible().catch(() => false)));
+
+    await p.goto(BASE + "csv-to-json/", { waitUntil: "networkidle" });
+    await p.getByTestId("btn-csv-json-sample").click();
+    await p.waitForTimeout(400);
+    await input.click();
+    const seen = new Set();
+    for (let i = 0; i < 14; i++) {
+      await p.keyboard.press("Tab");
+      seen.add(
+        await p.evaluate(() => {
+          const el = document.activeElement;
+          return el ? `${el.tagName}:${el.getAttribute("data-testid") || el.getAttribute("aria-label") || ""}` : "none";
+        })
+      );
+    }
+    check("csv_json_keyboard_traversal", seen.size >= 5, JSON.stringify([...seen]));
+
+    check("csv_json_no_console_errors", errors.length === 0, JSON.stringify(errors.slice(0, 3)));
+    const offOrigin = requests.filter((u) => /^https?:\/\//.test(u) && !u.startsWith(BASE));
+    check("csv_json_requests_stay_local", offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 5)));
+    await p.screenshot({ path: `${SHOT_DIR}/45-csv-dark.png` });
+    await p.close();
+
+    const axeSource = require("fs").readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    for (const theme of ["light", "dark"]) {
+      const { p: tp, errors: te } = await newCheckedPage(context);
+      await tp.goto(BASE + "csv-to-json/", { waitUntil: "domcontentloaded" });
+      await tp.evaluate((t) => localStorage.setItem("dth.theme", t), theme);
+      await tp.reload({ waitUntil: "networkidle" });
+      await tp.getByTestId("btn-csv-json-sample").click();
+      await tp.waitForTimeout(500);
+      await tp.evaluate(axeSource);
+      const violations = await tp.evaluate(async () => {
+        const r = await window.axe.run(document, { resultTypes: ["violations"] });
+        return r.violations
+          .filter((v) => v.impact === "serious" || v.impact === "critical")
+          .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
+      });
+      const shown = ((await tp.getByTestId("csv-json-output").innerText().catch(() => "")) || "").slice(0, 40);
+      check(
+        `csv_json_${theme}_populated`,
+        shown.includes("Rivera, Ana") && te.length === 0 && violations.length === 0,
+        JSON.stringify({ shown, violations, te: te.slice(0, 2) })
+      );
+      await tp.screenshot({ path: `${SHOT_DIR}/46-csv-${theme}.png` });
+      await tp.close();
+    }
+    {
+      const { p: mp, errors: me } = await newCheckedPage(context);
+      mp.setViewportSize({ width: 375, height: 812 });
+      await mp.goto(BASE + "csv-to-json/", { waitUntil: "networkidle" });
+      await mp.getByTestId("btn-csv-json-sample").click();
+      await mp.waitForTimeout(500);
+      await mp.getByTestId("csv-json-tabs").getByRole("radio", { name: "Table" }).click();
+      await mp.waitForTimeout(300);
+      const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      check(
+        "csv_json_mobile_usable",
+        (await mp.getByTestId("csv-json-input").isVisible()) &&
+          (await mp.getByTestId("csv-json-table").isVisible()) &&
+          overflow <= 1 &&
+          me.length === 0,
+        JSON.stringify({ overflow, me: me.slice(0, 2) })
+      );
+      await mp.screenshot({ path: `${SHOT_DIR}/47-csv-mobile.png`, fullPage: true });
       await mp.close();
     }
   }
