@@ -143,9 +143,14 @@ describe("csvToJson", () => {
 describe("csvToJson header contract", () => {
   it("refuses duplicate column names instead of renaming one", () => {
     const message = errorOf(csvToJson("a,a\n1,2", IN()));
-    expect(message).toContain("Duplicate column name");
-    expect(message).toContain("a");
+    expect(message).toContain("Duplicate column name in the header row (a)");
+    // The wording is asserted, not just the topic: papaparse has its own
+    // rename-and-warn path, and a test that only looked for "duplicate" would
+    // pass even if the refusal that keeps the keys intact had been deleted.
+    expect(message).toContain("so nothing was converted");
     expect(message).toContain("Header row off");
+    expect(message).not.toContain("a_1");
+    expect(errorOf(csvToJson("a,a,b,b\n1,2,3,4", IN()))).toContain("Duplicate column names in the header row (a, b)");
   });
 
   it("refuses a second blank header the same way", () => {

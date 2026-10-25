@@ -3860,8 +3860,10 @@ const data = await response.text();`;
     const dlCsv = await csvDownload.catch(() => null);
     let csvBytes = null;
     if (dlCsv) {
+      // download.path() is a promise; passing it straight to readFileSync threw
+      // and the catch turned a real file into a null body.
       try {
-        csvBytes = require("fs").readFileSync(dlCsv.path());
+        csvBytes = require("fs").readFileSync(await dlCsv.path());
       } catch {
         csvBytes = null;
       }
@@ -3975,7 +3977,9 @@ const data = await response.text();`;
           .filter((v) => v.impact === "serious" || v.impact === "critical")
           .map((v) => `${v.id}/${v.impact} × ${v.nodes.length}: ${(v.nodes[0].target || []).join(" ")}`);
       });
-      const shown = ((await tp.getByTestId("csv-json-output").innerText().catch(() => "")) || "").slice(0, 40);
+      // The editor's content, not its line-number gutter: the container's
+      // innerText begins "1\n2\n3…", which would pass for any populated page.
+      const shown = ((await tp.getByTestId("csv-json-output").locator(".cm-content").innerText().catch(() => "")) || "").slice(0, 120);
       check(
         `csv_json_${theme}_populated`,
         shown.includes("Rivera, Ana") && te.length === 0 && violations.length === 0,
