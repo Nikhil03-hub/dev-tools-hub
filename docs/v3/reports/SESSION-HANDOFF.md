@@ -225,3 +225,21 @@ GitHub reported **1 open moderate dependency vulnerability on the default branch
 2. `H`, `5-1`, and `L` outside the day fields are all *rejected* rather than approximated — the tool states the disagreement instead of producing a confident wrong answer. If a future task wants Quartz or Jenkins support, it needs its own dialect decision, not a permissive regex.
 
 **Also recorded:** the e2e numbers above came from a `dist` built before the last two test-only edits; those files are not part of the bundle, and the final `npm run check` re-validated the same tree. Nothing in this addendum is carried over from an earlier report.
+
+
+---
+
+## Addendum — T-206 CSV ⇄ JSON shipped on `v3`; Batch A complete (2026-10-26, ~01:15)
+
+**Verified numbers, each tied to the tree it came from.** The tested tree is `c01ffac`. On it: `npm run check` **PASS exit 0** — **328 unit tests (11 files)**, `check:registry` **12 tools**, boundaries **27 pure files**, `verify:lib`/`verify:debugkit` ALL PASS, build OK, `check-budgets: OK`, `postbuild-pages: 12 tool pages + 3 static pages + 404 + sitemap (15 URLs)`. `npm run test:e2e` **PASS 595 / FAIL 0**, exit 0, console errors `(none)` **and console warnings `(none)`** — 548 (T-205's tree) + 45 `csv_json_*` + 2 route checks from the now-derived a11y sweep. Eight mutations, each breaking exactly its own tests; every restore verified by SHA-256 (the runner prints before/after digests, so a partially-restored file cannot pass unnoticed). Local `gitleaks 8.28.0` over all 45 commits: no leaks.
+
+**Commit layout, as before:** pure core first (`8f44b96`, with the two exact-pinned dependencies), then UI + registry + detector + e2e (`303775f`), then the test-only fixes that the first full run exposed (`c01ffac`). papaparse (`5.7.0`, MIT, zero transitive) and `@types/papaparse` (`5.5.2`, dev) were already approved for T-206 in `DEPENDENCIES.md`; `npm` installed them with `^` ranges and they were re-pinned to exact versions by hand.
+
+**Batch A status: complete.** T-201 … T-206 are `DONE`. **Row 23 is CP2, status `PENDING`, and that is where this branch stops** — row 24 (T-301) depends on `CP2` and has not been started. Twelve tool routes now exist.
+
+**Two things worth the next task's attention.**
+
+1. **A green suite can be measuring nothing.** Two assertions were vacuous and only the run told me: `download.path()` is a promise, so reading the downloaded `.csv` threw inside a `catch` that turned a real file into `null`; the populated-theme check read the editor *container*, whose text starts with CodeMirror's line-number gutter, so it would pass on any page. A third gap — the duplicate-header test matching a phrase the module's own fallback path also emits — was spotted by reasoning while planning the mutations, and tightening it first is what made mutation M1 fail one test instead of surviving. Any assertion that cannot distinguish the code path it guards is not a test, and a `catch` that swallows an exception can turn a passing check into a fake one.
+2. **Measure the library before trusting its defaults.** Four findings changed the design: papaparse renames duplicate headers to `a_1` *and* `console.warn`s (so ambiguous headers are now refused before it runs — which is also why the suite reports zero warnings); `unparse` renders a nested object as `[object Object]` and a nested array as `1,2`; `unparse` **throws** on `[1,2,3]`, which is why the row-shape validator exists; and its own `escapeFormulae` force-quotes the escaped cell, contradicting the spec's exact expected output.
+
+**Open questions the reviewer may want to reverse, both one-line changes:** D1 (duplicate column names are refused rather than collision-renamed) and D2 (formula protection defaults to off, with the risk announced, because it edits exported text). D4 records the detector's known cost: a hand-typed CSV spaced like prose (`name, age`) is not detected, though it converts normally once the tool is open.
