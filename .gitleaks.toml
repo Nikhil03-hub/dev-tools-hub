@@ -1,16 +1,30 @@
 # gitleaks configuration for Dev Tools Hub.
-# The two files allow-listed below contain INTENTIONALLY FAKE secrets used as
-# test fixtures for the Debug Report redaction engine (they prove that the
-# engine removes them). None of them is a real credential. Every other file
-# is scanned with gitleaks' full default rule set.
+# The files allow-listed below contain INTENTIONALLY FAKE secrets used as test
+# fixtures and design mocks (they prove detection and redaction actually work).
+# None of them is a real credential. Every other file is scanned with gitleaks'
+# full default rule set.
 title = "Dev Tools Hub"
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Fake-secret test fixtures for the redaction engine"
+description = "Fake-secret test fixtures and UI mocks"
 paths = [
   '''(^|/)scripts/verify_debugkit\.ts$''',
   '''(^|/)src/lib/debugkit/samples\.ts$''',
+  # Canonical jwt.io example token (payload {"sub":"1234567890"}); proves paste
+  # detection routes a JWT to the decoder.
+  '''(^|/)src/core/detect/detect\.test\.ts$''',
+  # Static design mock: bearer placeholder ends in ".FAKE" and targets
+  # api.example.com.
+  '''(^|/)docs/v3/design/reference\.html$''',
 ]
+
+# Trade-off, recorded deliberately: this is PATH scoping, so gitleaks no longer
+# inspects these four files for any future secret. Fingerprint scoping -- which
+# would permit exactly these known findings and still catch anything new -- was
+# tried first and silently had no effect in gitleaks 8.28.0 `git` mode, so it was
+# removed rather than left in place looking protective while doing nothing.
+# Mitigation: two of the four are test/mock files with no reason to ever hold a
+# credential, and CI still scans every other file in full history.

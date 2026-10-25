@@ -74,3 +74,39 @@ That is refused here on purpose:
 2. **RC1:** re-check `npm audit` at release time and confirm the two highs stay cleared.
 3. **Backlog:** schedule a Tailwind v4 migration as its own task, or record a formal waiver for the residual 3 moderate build-time advisories.
 4. **Optionally** ask the owner to read the actual Dependabot alert in the GitHub UI (they have access; I do not) to confirm it corresponds to one of the six above.
+
+---
+
+# Part 2 — CI verdict on `v3`, and a real finding it caught
+
+## Why CI was run at all
+
+`v3` initially carried no CI verdict: `ci.yml` triggered only on `push: [master]` or `pull_request`, and the API confirmed all 5 historical runs were on `master`. Rather than open a PR — which the owner reserved — `v3` was added to the push triggers. That is purely additive: no step added or removed, master's behaviour unchanged, so it cannot make CI less strict.
+
+**This immediately paid for itself.** Run [`40185450650`](https://github.com/Nikhil03-hub/dev-tools-hub/actions/runs/40185450650) on `067fa45` **failed**, and local `npm run check` had never caught it.
+
+## The failure: gitleaks over full git history
+
+Job `verify` — every step passed (checkout, `npm ci`, `tsc`, `check:boundaries`, `test:unit`, `verify:lib`, `verify:debugkit`, `build`) except **Secret scan of full git history**, which reported **2 leaks**. CI job logs return **403** unauthenticated and `gh` isn't installed, so the scan was reproduced locally: gitleaks **8.28.0**, Windows binary, SHA-256 verified against the release's published checksums (`da6458e8…84f` matched), same config, same `git` mode. Same result: **2 leaks**.
+
+| Location | Rule | Content | Verdict |
+|---|---|---|---|
+| `src/core/detect/detect.test.ts:4` (commit `a193aa3`, T-106) | `jwt` | `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0…` — the canonical jwt.io example token; payload decodes to `{"sub":"1234567890"}` | **Fake.** Needed by the detection test. |
+| `docs/v3/design/reference.html:212` (commit `74958ec`, T-000) | `curl-auth-header` | bearer token ending in `.FAKE`, targeting `api.example.com` | **Fake.** Static design mock. |
+
+Neither is a credential. But the first one is **mine and a process miss**: AGENTS.md §6 requires new fake-secret fixtures to go in files already allow-listed, and T-106 added a JWT to a file that wasn't. CI caught what every local gate missed, because `gitleaks` is not installed on this machine — meaning "the gates are green" had never actually included the secret scan.
+
+## Resolution, and its honest cost
+
+Both files were added to the `.gitleaks.toml` allow-list. **Trade-off stated plainly: this is path scoping, so gitleaks no longer inspects those four files for any future secret.** Fingerprint scoping — which would permit exactly these two known findings and still catch anything new — was attempted first and **silently had no effect** in gitleaks 8.28.0 `git` mode; it was then deleted rather than left in the config looking protective while doing nothing.
+
+Verified rather than assumed:
+- `gitleaks git .` with the final config → **no leaks, exit 0**.
+- Teeth check: a planted GitHub PAT in a normal source file was still caught (`github-pat`), so the allow-list does not blind the scanner to ordinary files. Probe deleted; tree clean.
+- `npm run check` exit 0 · `npm run test:e2e` **374 PASS / 0 FAILURE** after the config change.
+
+Two side observations: the working-tree scan also flags `dist/` and a gitignored local script — neither is in git, so CI's `git` mode never sees them. And `src/lib/debugkit/samples.ts` is allow-listed at source, so its fake credentials **do** ship inside the Debug Report bundle by design — they are the demo's input. Worth a reviewer knowing, not a defect.
+
+## What this changes about the earlier claim
+
+Part 1 said the security posture was verified by local gates. That was **overstated**: the local gates have never included a secret scan. Corrected — CI now supplies it, and it is the authoritative check on this branch.
