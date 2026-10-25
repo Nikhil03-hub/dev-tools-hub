@@ -177,3 +177,21 @@ GitHub reported **1 open moderate dependency vulnerability on the default branch
 2. `npm run test:e2e` does **not** rebuild. Source edits need `npm run build` (or `npm run check`) first, or the suite tests a stale `dist`. It also refuses to start when something already holds port 4173 — a preview server orphaned by a timed-out run will look like a passing suite with 0 checks.
 
 **Open items handed forward, unchanged in status:** the `region`/moderate axe finding that sits on all six tool pages (shared `ToolLayout`, recorded in `reports/T-201.md`), production headers and real 404 behaviour, Firefox/Safari, screen-reader verification of the palette focus handoff, the 5.15:1 vs 5.2:1 internal-target exception, and the Tailwind v4 decision behind three moderate dev-only advisories.
+
+---
+
+## Addendum — T-202 and T-203 shipped on `v3` (2026-10-25)
+
+**Verified remote state.** `origin/v3` = `76e32e7`, matching local HEAD with no divergence. This addendum itself lands as one further docs-only commit on top. Commits since the last handoff: `faaa2e3` (T-201), `792d1f8` (T-202 Text Diff), `cf954cb` + `abc07d8` (T-203 cURL Converter and its test-token fix), `76e32e7` (CI secret-scan fix). `master` and `deploy` untouched. CP1 is still `PENDING`; T-202 and T-203 carry the same owner-instruction footnote ¹ in `TASK_QUEUE.md`.
+
+**Gate state on the shipped tree.** `npm run check` PASS — 149 unit tests (8 files), `check:registry` 9 tools, boundaries 21 pure files, `verify:lib` + `verify:debugkit` ALL PASS, build and size budgets OK, 12 static URLs. `npm run test:e2e` PASS **477 / FAIL 0**, no console errors. Mutation evidence: 4 for T-202, 5 for T-203, each breaking exactly the test that names it, every file restored byte-identically.
+
+**Three things the next task needs to know.**
+
+1. **`npm run test:e2e` fails fast now, and that is new.** The suite used to hang if it threw, because `browser.close()` sat after the failure point; a UI mutation proved it by holding port 4173 and printing nothing for 30 minutes. `main()`'s rejection path now closes the browser. If the suite reports 0 checks, suspect an orphaned `vite preview` on 4173 before suspecting the tests.
+2. **CI runs a secret scan that local gates do not.** `.gitleaks.toml` now allows specific *fake literals* by value, on top of the older path-scoped entries. Adding another `paths` line is the easy wrong answer: it stops scanning files that legitimately handle credentials. If a future fixture trips the scan, prefer a value entry, or build the literal at runtime so it never enters history.
+3. **Two shared components grew during P2.** `JsonEditor` gained `language="text"` (no grammar) for YAML/Python/Go panes, and the e2e tool count is derived from `dist/<slug>/index.html` instead of a typed number — so T-204…T-206 need no count edit.
+
+**Open items, unchanged in status:** the `region`/moderate axe finding on all nine tool pages (shared `ToolLayout`; recorded in `reports/T-201.md`), production headers and real 404 behaviour, Firefox/Safari, screen-reader verification of the palette focus handoff, the 5.15:1 vs 5.2:1 internal-target exception, the Tailwind v4 decision behind three moderate dev-only advisories, and **Go output from the cURL converter is unvalidated** because no Go toolchain is installed here.
+
+**Next ready task:** T-204 URL parser + query-string editor (`tasks/P2_tools.md`), dependency T-203 → DONE.
