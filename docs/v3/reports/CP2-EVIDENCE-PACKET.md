@@ -12,47 +12,84 @@ no repair was made to any flagged item, and no post-CP2 task was started.
 
 ## 1. State the reviewer should confirm before running anything
 
-**Read this as a predicate, not a snapshot.** Only documentation commits land on `v3` while the freeze
-holds, so the tip moves each time this packet is corrected and any hash written here is stale by the
-next one. Run these two commands against whatever the tip is; their output *is* the state:
+**Everything in this section is a command to run, not a number to copy.** Only documentation commits
+land on `v3` during the freeze, so any tip hash, run count or tally transcribed into this file is
+stale the moment the next one lands — and one already was (an earlier revision named `7bd3f5d` as the
+tip and "5 pass / 2 fail" when the true figures had moved). Read the repository instead.
+
+### 1.1 Branch, worktree and remote — what the path diff alone does not prove
+
+A clean `git diff` over the source paths says *what* changed; it says nothing about *where* you are.
+Run all five:
 
 ```
-git rev-parse HEAD                              # current tip (a docs commit)
+git fetch origin v3                 # read-only; origin/v3 is meaningless without it
+git rev-parse --abbrev-ref HEAD     # expected: v3
+git rev-parse HEAD                  # the tip under review
+git rev-parse origin/v3             # must equal the line above
+git status --porcelain              # expected: no output at all
+```
+
+Then confirm the packet you are reading is the packet that is pushed:
+
+```
+git diff --name-only origin/v3 -- docs/v3/reports/CP2-EVIDENCE-PACKET.md
+```
+
+Empty means this file matches the branch. If it is not empty, review the `origin/v3` copy
+(`git show origin/v3:docs/v3/reports/CP2-EVIDENCE-PACKET.md`), not the working tree.
+
+### 1.2 Which source is actually under review
+
+```
 git diff --name-only 20c7e83..HEAD -- src test scripts package.json package-lock.json .github
 ```
 
-The second command must print **nothing**. If it does, source under review has moved and this packet's
-measurements no longer describe the branch. The subtree comparison below is the same claim in a single
-value per path, so it does not depend on reading a diff:
+Must print **nothing**. `20c7e83` is the code commit (its own tested tree is `c01ffac`, the last commit
+before it that touched anything but `docs/`); everything after it in §1.4's list is documentation only.
+If that command lists a file, this packet's measurements no longer describe the branch and the review
+scope has to be re-established rather than reused. The same claim as one value per path:
 
-| Path | Tree/blob at `20c7e83` | At tip `7bd3f5d` | Equal |
+| Path | Tree/blob at `20c7e83` | Equal at `b31cff6` | Re-derive |
 |---|---|---|---|
-| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | same | ✓ |
-| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | same | ✓ |
-| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | same | ✓ |
-| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | same | ✓ |
-| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | same | ✓ |
-| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | same | ✓ |
+| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | ✓ | `git rev-parse <rev>:src` |
+| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | ✓ | same |
+| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | ✓ | same |
+| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | ✓ | same |
+| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | ✓ | same |
+| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | ✓ | same |
 
-Re-derive with `git rev-parse <rev>:<path>`. The `.github` row matters on its own: **the CI workflow
-file itself is byte-identical across every run in Finding E's tally**, so the pass/fail spread cannot
-be explained by an edit to the pipeline.
+The `.github` row carries its own weight: **the CI workflow file is byte-identical across every run
+discussed in Finding E**, so the pass/fail spread cannot be explained by an edit to the pipeline — only
+by how long the runner takes.
 
-| Fact | Value | How to re-check |
+### 1.3 CI verdicts, enumerated live rather than transcribed
+
+```
+for c in $(git rev-list --reverse 20c7e83..HEAD); do
+  printf "%s " "${c:0:7}"
+  curl -s -H "Accept: application/vnd.github+json"     "https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/$c/check-runs" |
+  python -c "import sys,json;d=json.load(sys.stdin);print(*[r['name']+':'+r['status']+'/'+str(r['conclusion']) for r in d.get('check_runs',[])] or ['no runs'])"
+done
+```
+
+`gh` is **not** installed on this machine, hence the raw API. What the output demonstrates is the
+pattern, not a number: commits whose §1.2 paths are byte-identical carry **both** verdicts. Two of them
+failed, and both failures were the same two assertions in T-202's diff tests (§6). Do not re-run the
+pipeline to collect a nicer ratio — Finding E says the ratio is not evidence either way.
+
+For a specific commit, the annotations name the failing lines:
+`https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/check-runs/<id>/annotations`.
+
+### 1.4 Other facts worth re-checking rather than trusting
+
+| Fact | Value to confirm | How |
 |---|---|---|
-| Branch | `v3` (no other branch was touched) | `git rev-parse --abbrev-ref HEAD` |
-| **Source under review** | `20c7e83` (code) / `c01ffac` (the tree the gates were run on) | `git log --oneline -8` |
-| Tip at the time of writing | `7bd3f5d` — documentation only | `git rev-parse HEAD` |
-| Worktree | clean, no untracked files | `git status --porcelain` (empty) |
-| CI, seven completed runs of that identical source | `20c7e83` ✓, `ed06cf4` ✓, `614f5f4` ✗, `9e7409f` ✗, `e082dba` ✓, `b857694` ✓, `7bd3f5d` ✓ → **5 pass / 2 fail** | `curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/<sha>/check-runs` — `gh` is **not** installed on this machine |
-| CI on `8925903` (T-205) | `verify` **completed / success** | same endpoint, that hash |
-| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — 19 commits. Per task: T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; T-203 `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`; then docs-only `582b759`, `20c7e83`, `ed06cf4`, `614f5f4`, `9e7409f`, `e082dba`, `b857694`, `7bd3f5d`. **Everything after `c01ffac` touches `docs/` alone.** | `git log --oneline 07da1fe^..HEAD` |
-| Secret scan | run locally over 45 commits at `20c7e83` with gitleaks 8.28.0 → **no leaks found**. CI repeats the same pinned version over full history as its **first** step, before any install, so every run that reached `npm run test:unit` (including both failures) cleared the scan; `7bd3f5d` is green end to end. | see caveat in §7 — and note §10's corpus contains a fake `authorization: Bearer x` header, which CI's scan has now seen |
-
-The counts below were produced by the implementation agent and must be **re-derived** by the
-reviewer, not accepted: `npm ci`, `npm run check`, `npm run test:e2e`. Reported values for
-`20c7e83` were check **PASS exit 0** (328 unit tests / 12 registry tools / 27 pure files / budgets OK /
-15 URLs) and e2e **595 PASS / 0 FAIL**.
+| CI on `8925903` (T-205) | `verify` completed / success | the §1.3 loop extended backwards, or the per-commit endpoint |
+| Secret scan at `20c7e83` | gitleaks 8.28.0 over 45 commits → no leaks found | re-run per §7's caveat about which binary |
+| CI's own scan on later commits | it is the **first** step, before any install, so any run that reached `npm run test:unit` cleared it — including both failures; the failing runs' annotations list only the two diff assertions | §1.3 plus the annotations endpoint |
+| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — 19 commits. Per task: T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; T-203 `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`; the rest are `docs/`-only | `git log --name-only --oneline c01ffac..HEAD` shows every later commit touching only `docs/` |
+| Note §10's corpus | it contains a fake `authorization: Bearer x` header, and CI's scan has cleared it on every run since | same as above |
 
 ## 2. Reviewer question 1 — formula protection: accurate, but is it *seen*?
 
@@ -251,7 +288,7 @@ packet. Nothing was changed.
 
 | Evidence | Value |
 |---|---|
-| Seven CI runs, one identical source | `20c7e83` **pass**, `ed06cf4` **pass**, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` **pass**, `b857694` **pass**, `7bd3f5d` **pass** — **5 pass / 2 fail**. Each carries identical `src`, `test`, `scripts`, `package.json`, `package-lock.json` **and `.github`** tree hashes (§1), so neither the code nor the pipeline differed between them |
+| Identical source, opposite verdicts | §1.3 enumerates the verdicts for every commit after the code under review. Read them from that command rather than from this line; what is invariant is that **some runs passed and some failed while §1.2's paths, `.github` included, were byte-identical**, and every failure was at these two assertions and nowhere else |
 | What failed, both times | the same two assertions and nothing else: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false`; each failure's annotations list those two lines plus the job's exit-code-1 note — no other test, gate or scan failed on either run |
 | What that means | the gate is nondeterministic rather than persistently broken: the tip is green today, so a green `verify` on `v3` currently carries no information about the tree, and a red one carries no information about the change that preceded it |
 | What they assert | `expect(r.ok).toBe(false)` — i.e. the test **requires the diff library's own timeout to fire** |
@@ -285,12 +322,11 @@ Severity is the reviewer's. My reading, offered not applied: protocol S1 covers 
 gate that fails intermittently on untouched code arguably belongs there because it removes the meaning
 of every later green run; S2 is the defensible alternative.
 
-**On chasing the tally.** Every correction to this packet pushes again and therefore adds another
-sample, so the count could be grown indefinitely. It stops with this revision: the next push will make
-the eighth run of the same source, its verdict will be recorded nowhere important, and neither a
-longer green streak nor another red line changes the finding. **Two failures on identical code are the
-evidence**; the ratio is not. §1's predicate commands are what the reviewer should use, not any hash
-written here.
+**On chasing tallies.** Each correction to this packet is itself a push and therefore another sample,
+so any count written here is obsolete before it is read — which is why §1.1–§1.3 give commands instead
+of numbers, and why this section states no ratio at all. **Two failures on byte-identical code are the
+finding.** A longer streak of greens would not weaken it, and one more red would not strengthen it;
+neither is a reason to re-run the pipeline.
 
 ## 7. Caveats about the evidence in this packet
 
