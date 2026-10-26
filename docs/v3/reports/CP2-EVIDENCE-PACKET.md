@@ -190,7 +190,9 @@ packet. Nothing was changed.
 
 | Evidence | Value |
 |---|---|
-| Same source, opposite verdicts | CI `verify` **success** on `20c7e83`, **failure** on `614f5f4`; `git diff 20c7e83..614f5f4 -- src test scripts package.json package-lock.json` is **empty** (two commits touched `docs/` only) |
+| Same source, opposite verdicts | CI `verify` **success** on `20c7e83` and `ed06cf4`, **failure** on `614f5f4` and `9e7409f` — four runs of source that is byte-identical in `src/`, `test/`, `scripts/`, `package.json` and `package-lock.json` across all four (`git diff 20c7e83..HEAD` over those paths is empty; the commits touch `docs/` only) |
+| What failed | the same two assertions both times: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
+| Current state of the branch tip | **red**. Two consecutive failures means the practical situation is not "occasionally flaky" but "CI is failing on `v3` right now", and the reviewer should expect the same on their own push |
 | What failed | exactly two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
 | What they assert | `expect(r.ok).toBe(false)` — i.e. the test **requires the diff library's own timeout to fire** |
 | Why that flips | `src/core/diff/diff.ts:41` sets `TIMEOUT_MS = 2000`. Measured locally over three repeats, the two tests run in **2020–2027 ms** — about 1% above the budget. On GitHub's runner the same 4,000-line / 40,000-character comparison completed *inside* 2000 ms, so `r.ok` was `true` and the assertion failed |
@@ -198,6 +200,15 @@ packet. Nothing was changed.
 So the assertion encodes "this machine is slow enough to give up", which is a property of the runner
 rather than of the product. The neighbouring `expect(elapsed).toBeLessThan(6000)` in the same test is
 fine; it is the demanded-timeout assertion that is environment-dependent.
+
+Two things the reviewer should hold separately. First, **the product is not what is failing**: every
+gate — `npm run check`, the 595-check e2e suite, gitleaks — passes on this machine for this exact
+tree, and the failing assertion is about how long a machine takes, not about diff correctness. Second,
+CI's own annotations on both failed runs carry a runner-image note ("`ubuntu-latest` will migrate to
+Ubuntu 26 beginning October 19, 2026"), and today is October 26 — so a change in runner hardware is a
+plausible reason the branch went from passing to failing across commits that touch no source. I have
+not proven that; it is offered as the most likely mechanism, and either way the test is wrong to
+depend on it.
 
 Why it matters at a checkpoint: the protocol's regression rules give the gate its authority, and this
 one can fail on a tree that nobody changed. The reviewer's own `npm run check` may or may not
