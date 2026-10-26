@@ -18,8 +18,9 @@ no repair was made to any flagged item, and no post-CP2 task was started.
 | Local HEAD | `20c7e83b4afe2ba461f7eb55ecf4f99e2b8ef982` | `git rev-parse HEAD` |
 | `origin/v3` | `20c7e83…` — identical, `0 0` ahead/behind | `git fetch origin v3 && git rev-list --left-right --count origin/v3...HEAD` |
 | Worktree | clean, no untracked files | `git status --porcelain` (empty) |
-| CI on `20c7e83` | `verify` **completed / success** | `curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/20c7e83/check-runs` — note `gh` is **not** installed on this machine |
+| CI on `20c7e83` (code under review) | `verify` **completed / success** | `curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/20c7e83/check-runs` — note `gh` is **not** installed on this machine |
 | CI on `8925903` (T-205) | `verify` **completed / success** | same endpoint, that hash |
+| CI on `ed06cf4` / `614f5f4` (docs-only commits over identical code) | `ed06cf4` **success**; `614f5f4` **failure** — see **Finding E**, two T-202 timing tests. `git diff 20c7e83..614f5f4 -- src test scripts package.json package-lock.json` is empty, so the same source passed and failed CI on consecutive runs. | annotations: `src/core/diff/diff.test.ts:82` and `:152`, both "expected true to be false" |
 | Diff range for Batch A | `git log --oneline 582b759..v3` = the 6 commits of T-205/T-206 plus earlier; T-201…T-206 core/UI pairs are `07da1fe`, `792d1f8`, `cf954cb`/`76e32e7`, `facf7ac`/`7cd9896`, `e86d6b7`/`8925903`, `8f44b96`/`303775f`/`c01ffac` | `git log --oneline -20` |
 | Secret scan | `gitleaks 8.28.0 git . --config .gitleaks.toml --redact --no-banner` → **no leaks found**, 45 commits | see caveat in §4 |
 
@@ -106,7 +107,7 @@ Definitions and what this shows:
 * The markdown-table false positive is common to every variant including the spec literal; the chip
   is a suggestion, not a routing rule, and it sits at confidence 0.6 below the sharper signatures.
 
-Reproducible with the source in **Appendix A** (§9); the same code also ran from `D:/tmp` while this
+Reproducible with the source in **Appendix A** (§10); the same code also ran from `D:/tmp` while this
 packet was written.
 
 **Differential confirmation, because "V5 = shipped" is a claim about someone else's code.** The
@@ -182,7 +183,40 @@ Severity is the reviewer's call. My reading, offered without claiming the decisi
 because the paste box is the home page's flagship entry point and this sends a CSV author to a cron
 tool; **S3-leaning** because navigation still reaches the right tool and no data is affected.
 
-## 6. Caveats about the evidence in this packet
+## 6. New finding E — the CI gate is not deterministic for Batch A
+
+Discovered by checking CI after a documentation-only push, and the most consequential thing in this
+packet. Nothing was changed.
+
+| Evidence | Value |
+|---|---|
+| Same source, opposite verdicts | CI `verify` **success** on `20c7e83`, **failure** on `614f5f4`; `git diff 20c7e83..614f5f4 -- src test scripts package.json package-lock.json` is **empty** (two commits touched `docs/` only) |
+| What failed | exactly two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
+| What they assert | `expect(r.ok).toBe(false)` — i.e. the test **requires the diff library's own timeout to fire** |
+| Why that flips | `src/core/diff/diff.ts:41` sets `TIMEOUT_MS = 2000`. Measured locally over three repeats, the two tests run in **2020–2027 ms** — about 1% above the budget. On GitHub's runner the same 4,000-line / 40,000-character comparison completed *inside* 2000 ms, so `r.ok` was `true` and the assertion failed |
+
+So the assertion encodes "this machine is slow enough to give up", which is a property of the runner
+rather than of the product. The neighbouring `expect(elapsed).toBeLessThan(6000)` in the same test is
+fine; it is the demanded-timeout assertion that is environment-dependent.
+
+Why it matters at a checkpoint: the protocol's regression rules give the gate its authority, and this
+one can fail on a tree that nobody changed. The reviewer's own `npm run check` may or may not
+reproduce (it passes on this machine), and every future push to `v3` carries a coin-flip until the
+test is made deterministic. It is **pre-existing in T-202**, not introduced by T-206 — the docs commit
+only exposed it.
+
+Bounded repair direction, offered for the reviewer's repair row rather than implemented: make the
+outcome machine-independent instead of inflating the fixture (which just relocates the margin). Either
+give the timeout a seam the test can pin, or assert the invariant that holds whichever way the race
+goes — *if* it times out, the message must be the "too different to compare quickly" error; *if* it
+completes, it must do so within the budget and yield parts. Both directions of that assertion are
+testable without depending on CPU speed.
+
+Severity is the reviewer's. My reading, offered not applied: protocol S1 covers "a broken build", and a
+gate that fails intermittently on untouched code arguably belongs there because it removes the meaning
+of every later green run; S2 is the defensible alternative.
+
+## 7. Caveats about the evidence in this packet
 
 * The browser measurements ran against `vite preview` on port **4174**, started by me and stopped
   again; port 4173 (the suite's own port) was verified free. Chromium only, so nothing here speaks to
@@ -195,7 +229,7 @@ tool; **S3-leaning** because navigation still reaches the right tool and no data
 * Probe scripts are in `D:/tmp` deliberately: they import the shipped modules but are not part of the
   build, the gates, or the repository, and they leave no artefact in `dist/` or `test-results/`.
 
-## 7. Review inputs the repository does not actually provide
+## 8. Review inputs the repository does not actually provide
 
 Three things the review prompt and protocol ask for have no source in this repo. Recorded rather
 than invented:
@@ -213,14 +247,14 @@ than invented:
    repo and cannot be updated from here. The CP2 entry therefore lands in `REVIEW_LOG.md` and
    `TASK_QUEUE.md` only, unless the owner supplies that file.
 
-## 8. What this packet does not do
+## 9. What this packet does not do
 
 It does not classify severities, does not set a status on any queue row, does not declare CP2
 accepted, and does not start T-301. It does not repair the items above, even though two have
 one-line fixes, because the review has not been recorded and the repair workflow has not been
 authorised. The decision and any `R-CP2-<k>` repair rows belong to the reviewer.
 
-## 9. Appendix — reproduction source
+## 10. Appendix — reproduction source
 
 Both listings import the shipped modules directly and write nothing into the repository. Save as
 `probe.ts` outside `src/` and run with `npx tsx probe.ts` from the repo root.
@@ -320,7 +354,7 @@ const OTHER: [string, string][] = [
 ];
 ```
 
-Every number in §3's table and the shipped-rule differential in §9-B were produced from exactly these
+Every number in §3's table and the shipped-rule differential in §10-B were produced from exactly these
 34 samples, and the Finding D chip readings come from the same `detectInput` call with no id filter —
 i.e. the input the home page itself uses. A browser check of the visible chips on `/` confirmed the
 same two samples render "Looks like a cron expression → Open in Cron Explainer".

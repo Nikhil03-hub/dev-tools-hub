@@ -285,3 +285,14 @@ rule accepts any 5-6 whitespace tokens, the field alphabet allows letters plus c
 comma counts as structure. Real schedules stay safe under a proposed discriminator (internal commas,
 digits, `*`) — measured, not yet coded. Still frozen: no source change, no severity assigned, no
 repair started. Packet §5 and §9.
+
+
+**And one more, from checking CI instead of assuming.** After a documentation-only push, CI `verify`
+**failed** on `614f5f4` while it had **passed** on `20c7e83` — the same source (`git diff` over
+`src test scripts package.json package-lock.json` between them is empty). Two assertions in
+`src/core/diff/diff.test.ts` (:82 and :152) demand that the diff library's own 2-second timeout fire;
+measured here they run in 2020–2027 ms, so on GitHub's faster runner the work completes in time,
+`r.ok` is `true`, and the gate turns red on untouched code. Recorded as Finding E in the packet (§6):
+pre-existing in T-202, not introduced here, and the first thing that makes the CP2 gate itself
+unreliable. A repair direction that does not depend on CPU speed is sketched there and deliberately
+not implemented. The freeze still holds — three docs commits, zero source changes.
