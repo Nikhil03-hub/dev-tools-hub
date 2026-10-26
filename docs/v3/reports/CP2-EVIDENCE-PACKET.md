@@ -190,7 +190,7 @@ packet. Nothing was changed.
 
 | Evidence | Value |
 |---|---|
-| Five CI runs, one identical source | `20c7e83` **pass**, `ed06cf4` **pass**, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` **pass** — all five commit the same `src/`, `test/`, `scripts/`, `package.json` and `package-lock.json` bytes (`git diff 20c7e83..e082dba` over those paths is empty; every commit after `20c7e83` touches `docs/` only). **3 pass / 2 fail on unchanged code.** |
+| Six CI runs, one identical source | `20c7e83` **pass**, `ed06cf4` **pass**, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` **pass**, `b857694` **pass** — all six commit the same `src/`, `test/`, `scripts/`, `package.json` and `package-lock.json` bytes (`git diff 20c7e83..e082dba` over those paths is empty; every commit after `20c7e83` touches `docs/` only). **4 pass / 2 fail on unchanged code.** |
 | What failed, both times | the same two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
 | What that means | the gate is nondeterministic rather than persistently broken: the branch tip is green right now, and a green verdict on `v3` therefore carries no information about the tree. The reviewer's own run may pass or fail twice in a row for the same reason. |
 | What failed | exactly two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
@@ -224,6 +224,11 @@ testable without depending on CPU speed.
 Severity is the reviewer's. My reading, offered not applied: protocol S1 covers "a broken build", and a
 gate that fails intermittently on untouched code arguably belongs there because it removes the meaning
 of every later green run; S2 is the defensible alternative.
+
+**On chasing the tally.** Every correction to this packet pushes again and therefore adds another
+sample, so the count could be grown indefinitely. It stops here: two failures on identical code are
+already sufficient to prove the gate is nondeterministic, and a longer streak of passes would create a
+false impression of reliability rather than remove it.
 
 ## 7. Caveats about the evidence in this packet
 
