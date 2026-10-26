@@ -243,3 +243,30 @@ GitHub reported **1 open moderate dependency vulnerability on the default branch
 2. **Measure the library before trusting its defaults.** Four findings changed the design: papaparse renames duplicate headers to `a_1` *and* `console.warn`s (so ambiguous headers are now refused before it runs — which is also why the suite reports zero warnings); `unparse` renders a nested object as `[object Object]` and a nested array as `1,2`; `unparse` **throws** on `[1,2,3]`, which is why the row-shape validator exists; and its own `escapeFormulae` force-quotes the escaped cell, contradicting the spec's exact expected output.
 
 **Open questions the reviewer may want to reverse, both one-line changes:** D1 (duplicate column names are refused rather than collision-renamed) and D2 (formula protection defaults to off, with the risk announced, because it edits exported text). D4 records the detector's known cost: a hand-typed CSV spaced like prose (`name, age`) is not detected, though it converts normally once the tool is open.
+
+
+---
+
+## Addendum — Batch A frozen for CP2, evidence packet prepared (2026-10-26, ~01:50)
+
+The independent reviewer's assessment accepted T-206's result but raised three specific questions to
+settle **before** CP2 closes. Nothing in Batch A was changed in response: the branch stays at
+`20c7e83`, the worktree is clean, and T-301 was not started. Instead the three questions were turned
+into measurements, in [CP2-EVIDENCE-PACKET.md](CP2-EVIDENCE-PACKET.md):
+
+- **Formula warning** — wording is accurate, countable and explicitly *not* a guarantee; the note is
+  above the fold at 1440×900 and 1366×768, but **below the fold at 390×844** and styled in the same
+  dim 12 px tone as informational notes. Packet §2.
+- **Detector strictness** — a 21-sample corpus replayed through five rule variants shows the
+  tightened "all records must agree" clause I added buys **no precision at all** while losing two
+  genuine CSV shapes; the tight-delimiter rule is what actually rejects prose, logs and SQL. My own
+  deviation D5 is therefore recorded as over-restriction, with the matrix to prove it. Packet §3.
+- **Detect numbers** — reproduced exactly: a leading zero in row 200 is warned about, row 201 is
+  rewritten in silence. A bounded repair (one always-on coverage sentence, no second full parse) is
+  specified with acceptance criteria and is **not implemented** while the freeze holds. Packet §4.
+
+**Next actor is Opus, not the implementer** ([REVIEW_PROTOCOL.md](../REVIEW_PROTOCOL.md) §1, §3):
+`npm ci`, `npm run check`, `npm run test:e2e`, screenshots at 1440×900 and 390×844, the diff since
+Batch A started, then a `REVIEW_LOG.md` entry, `ACCEPTED`/`REJECTED` on rows 17–22 and any
+`R-CP2-<k>` repair rows. The owner's protocol step is to tell the reviewer: *"CP2 ready, pushed to
+v3."* — `origin/v3` is already at `20c7e83` with `verify` green.
