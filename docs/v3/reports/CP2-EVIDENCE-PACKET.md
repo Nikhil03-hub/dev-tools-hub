@@ -50,14 +50,19 @@ before it that touched anything but `docs/`); everything after it in §1.4's lis
 If that command lists a file, this packet's measurements no longer describe the branch and the review
 scope has to be re-established rather than reused. The same claim as one value per path:
 
-| Path | Tree/blob at `20c7e83` | Equal at `b31cff6` | Re-derive |
+| Path | Tree/blob at `20c7e83` | Equal at your `HEAD` | Re-derive both sides |
 |---|---|---|---|
-| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | ✓ | `git rev-parse <rev>:src` |
-| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | ✓ | same |
-| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | ✓ | same |
-| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | ✓ | same |
-| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | ✓ | same |
-| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | ✓ | same |
+| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | ✓ at `841f6ae` | `git rev-parse 20c7e83:src` and `git rev-parse HEAD:src` |
+| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | ✓ | same, for `test` |
+| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | ✓ | same, for `scripts` |
+| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | ✓ | same, for `package.json` |
+| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | ✓ | same, for `package-lock.json` |
+| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | ✓ | same, for `.github` |
+
+The left column is a fixed baseline and stays valid; the middle column is a claim about **this file's
+own commit**, named once so it cannot be mistaken for a current tip — re-derive it on the commit you are
+reviewing. The hashes were last compared at `841f6ae`, which is a documentation commit and therefore one
+more sample rather than a new state.
 
 The `.github` row carries its own weight: **the CI workflow file is byte-identical across every run
 discussed in Finding E**, so the pass/fail spread cannot be explained by an edit to the pipeline — only
