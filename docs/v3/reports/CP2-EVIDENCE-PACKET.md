@@ -75,9 +75,15 @@ the shipped parser, no source changed.
 |---|---|---|
 | V1 — spec literal (any 2 of 5 records agree, count ≥2) | 0 | 6 — two prose lines, three prose lines, comma-separated log, pretty JSON, markdown table, SQL fragment |
 | V2 — V1 + JSON excluded | 0 | 5 (same, minus pretty JSON) |
-| V3 — V1 + JSON excluded + **tight delimiter** | 3 | 1 (markdown table) |
-| V4 — V1 + JSON excluded + **all records agree** | 3 | 3 — two prose lines, three prose lines, markdown table |
+| V3 — V1 + JSON excluded + **tight delimiter** | 4 — spaced numeric column, spaced text-only column, padded spacing, spaced + footer line | 1 (markdown table) |
+| V4 — V1 + JSON excluded + **all records agree** | 3 — footer line, one ragged row, spaced + footer | 3 — two prose lines, three prose lines, markdown table |
 | V5 — **shipped**: V1 + JSON + tight + all-agree | 6 | 1 (markdown table) |
+
+Provenance, since this table changed once already: the V3 row originally read "3 missed" — it was
+written from the corpus *before* the footer-line and ragged-row samples were added, and the
+re-verification through Appendix A (which reproduces every number above from the shipped modules)
+showed it should be 4. V5's 6 and V4's 3 were already current. The conclusion is unchanged and gets
+slightly stronger: dropping the all-agree clause recovers 2 CSV forms at zero precision cost.
 
 Definitions and what this shows:
 
@@ -90,15 +96,25 @@ Definitions and what this shows:
   file with one unquoted stray comma. The reviewer's suspicion is confirmed: that clause is
   unnecessarily strict and should be dropped, leaving V3.
 * The residual, and it is the tight rule's cost, not the all-agree rule's: `name, age / Ana, 30` and
-  `full name, city / Ana Rivera, Madrid` are **not detected** by V3 or V5. They convert correctly once
-  the tool is opened; only the paste suggestion is missing. Recovering them means accepting
-  `Hello, world / Goodbye, friend`, which is the misclassification the batch mandate named. Recorded
-  as a judgement for the reviewer, not resolved by me.
+  `full name, city / Ana Rivera, Madrid` are **not detected as CSV** by V3 or V5. **Corrected after
+  the first version of this packet:** the claim that "only the paste suggestion is missing" was
+  incomplete. Those inputs are not silent — the home page offers a confidently wrong suggestion
+  instead, which is documented as Finding D in §5. Recovering them as CSV means accepting
+  `Hello, world / Goodbye, friend` under the current rule set, so the correction belongs in the cron
+  rule rather than in loosening the CSV rule. Recorded as a judgement for the reviewer, not resolved
+  by me.
 * The markdown-table false positive is common to every variant including the spec literal; the chip
   is a suggestion, not a routing rule, and it sits at confidence 0.6 below the sharper signatures.
 
-Reproducible with: `npx tsx D:/tmp/cp2evidence.probe.ts` (imports `src/core/csv/csv.ts` and
-`src/core/detect/detect.ts` directly; writes nothing into the repo).
+Reproducible with the source in **Appendix A** (§9); the same code also ran from `D:/tmp` while this
+packet was written.
+
+**Differential confirmation, because "V5 = shipped" is a claim about someone else's code.** The
+re-implemented V5 predicate was replayed against all 34 corpus samples next to the detector the app
+actually runs (`detectInput`, with the available-id set narrowed to `csv-json` so neither the
+three-result cap nor a competing confidence can hide a match). **34 of 34 agree** — including the six
+missed CSV forms and the one markdown-table false positive. So the table above describes the shipped
+rule, not a look-alike. Reproduce it with Appendix B.
 
 ## 4. Reviewer question 3 — Detect numbers: confirmed silent past row 200
 
@@ -126,7 +142,47 @@ unbounded parse, for the reviewer to accept or reject as a repair row:
 * Test to add: unit case asserting the baseline warning at 201+ rows *and* that no per-column warning
   appears for a rewrite beyond the window; e2e case `csv_json_detect_numbers_coverage`.
 
-## 5. Caveats about the evidence in this packet
+## 5. New finding D — a spaced CSV or a comma list is routed to the Cron Explainer
+
+Discovered while measuring §3; it is not one of the reviewer's three questions, and nothing was
+changed. Measured in the **built app** — the home page's visible `home-suggest-*` chips at 1440×900
+(screenshot `D:/tmp/cp2-home-spaced-csv.png`):
+
+| Paste | Chip the home page actually shows |
+|---|---|
+| `name, age` / `Ana, 30` / `Bo, 40` — a spaced CSV | **"Looks like a cron expression → Open in Cron Explainer"** |
+| `milk, bread, eggs, butter, flour, sugar` | **"Looks like a cron expression → Open in Cron Explainer"** |
+| `id,name` / `1,Ana` / `2,Bo` — a tight CSV | "Looks like CSV → Open in CSV ⇄ JSON" ✓ correct |
+
+So the spaced-CSV cost described in §3 is not merely a *missing* suggestion; the user gets a
+confidently **wrong** one at confidence 0.7. The rule responsible is **T-205's cron detector**, which
+runs before T-206's — that is also why T-205's own tests never saw it.
+
+Mechanism, read from `src/core/detect/detect.ts` (`CRON_SHAPE`, `CRON_FIELD`, `CRON_STRUCTURED`):
+the shape's second branch accepts any 5- or 6-token whitespace chunk, so three lines of two tokens
+become six; `CRON_FIELD` permits letters **and** commas, so `name,` `Ana,` `30` all pass; and
+`CRON_STRUCTURED` counts a bare trailing comma as evidence of structure. Per token:
+
+| Token | passes field alphabet | "structured" | structured if a trailing comma is discounted |
+|---|---|---|---|
+| `name,` | yes | yes | **no** |
+| `Hello,` | yes | yes | **no** |
+| `and` | yes | no | no |
+| `30` | yes | yes | yes |
+| `*`, `*/15` | yes | yes | yes |
+
+Real schedules still separate themselves under the last column: `1,3,5` and `MON,WED` carry
+*internal* commas, and any 5-field expression also contains a digit or `*`. A bounded repair therefore
+looks plausible — require structure that is not merely a trailing comma — but that is a proposal for
+a repair row, not something I implemented. Such a change must keep every existing cron positive green
+(`* * * * *`, `*/15 9-17 * * 1-5`, `30 0 * * * *`, `0 0 1 1 SUN`, all seven macros) and add the two
+negatives above, both directions, as protocol §3 requires.
+
+Severity is the reviewer's call. My reading, offered without claiming the decision: **S2-leaning**
+because the paste box is the home page's flagship entry point and this sends a CSV author to a cron
+tool; **S3-leaning** because navigation still reaches the right tool and no data is affected.
+
+## 6. Caveats about the evidence in this packet
 
 * The browser measurements ran against `vite preview` on port **4174**, started by me and stopped
   again; port 4173 (the suite's own port) was verified free. Chromium only, so nothing here speaks to
@@ -139,9 +195,132 @@ unbounded parse, for the reviewer to accept or reject as a repair row:
 * Probe scripts are in `D:/tmp` deliberately: they import the shipped modules but are not part of the
   build, the gates, or the repository, and they leave no artefact in `dist/` or `test-results/`.
 
-## 6. What this packet does not do
+## 7. Review inputs the repository does not actually provide
+
+Three things the review prompt and protocol ask for have no source in this repo. Recorded rather
+than invented:
+
+1. **There is no accepted checkpoint to diff against.** No row in
+   [TASK_QUEUE.md](../TASK_QUEUE.md) carries `ACCEPTED` (CP1 is still `PENDING`), so "review the diff
+   for every task since the last accepted checkpoint" has no baseline commit. The practical range for
+   Batch A is `git log --oneline 07da1fe^..v3` (T-201's pure-core commit and everything after it).
+2. **The e2e floor has no accepted number.** Protocol §4 says the PASS count never goes down between
+   checkpoints; because nothing has been accepted, only the implementer-reported history exists:
+   413 (T-201) → 444 (T-202) → 477 (T-203) → 516 (T-204) → 548 (T-205) → 595 (T-206). The reviewer's
+   own re-run is what turns that into evidence.
+3. **`Project_State.md` does not exist in this repository** — checked at the root, in `docs/` and in
+   `docs/v3/`. Protocol §3 step 5 calls it "the owner's `Project_State.md`", so it lives outside the
+   repo and cannot be updated from here. The CP2 entry therefore lands in `REVIEW_LOG.md` and
+   `TASK_QUEUE.md` only, unless the owner supplies that file.
+
+## 8. What this packet does not do
 
 It does not classify severities, does not set a status on any queue row, does not declare CP2
-accepted, and does not start T-301. It does not repair the three items above, even though two have
+accepted, and does not start T-301. It does not repair the items above, even though two have
 one-line fixes, because the review has not been recorded and the repair workflow has not been
 authorised. The decision and any `R-CP2-<k>` repair rows belong to the reviewer.
+
+## 9. Appendix — reproduction source
+
+Both listings import the shipped modules directly and write nothing into the repository. Save as
+`probe.ts` outside `src/` and run with `npx tsx probe.ts` from the repo root.
+
+**A. The §3 variant matrix and the §4 audit boundary.**
+
+```ts
+import { csvToJson, } from "./src/core/csv/csv";
+import { detectInput } from "./src/core/detect/detect";
+
+const DELIMS = [",", ";", "\t", "|"];
+function records(text: string, d: string) {           // same scan the shipped rule uses
+  const counts: number[] = [];
+  let fields = 1, quoted = false, has = false, tight = false;
+  const sp = (c?: string) => c === " " || c === "\t" || c === "\n" || c === "\r";
+  for (let i = 0; i < text.length && counts.length < 5; i++) {
+    const ch = text[i];
+    if (quoted) { if (ch === '"' && text[i + 1] === '"') i++; else if (ch === '"') quoted = false; continue; }
+    if (ch === '"') { quoted = true; has = true; }
+    else if (ch === d) { fields++; has = true; if (!sp(text[i + 1])) tight = true; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; if (has) { counts.push(fields); fields = 1; has = false; } }
+    else if (ch !== " ") has = true;
+  }
+  if (has && counts.length < 5) counts.push(fields);
+  return { counts, tight };
+}
+const jsonish = (t: string) => { const x = t.trim(); if (/^[{[]/.test(x)) return true; try { JSON.parse(x); return true; } catch { return false; } };
+const pairOK = (c: number[]) => { const f = c.filter((n) => n >= 2); return f.some((n) => f.filter((m) => m === n).length >= 2); };
+const allOK = (c: number[]) => c.length >= 2 && c.every((n) => n === c[0] && n >= 2);
+const V = {
+  V1: (t: string) => DELIMS.some((d) => pairOK(records(t, d).counts)),
+  V2: (t: string) => !jsonish(t) && V.V1(t),
+  V3: (t: string) => !jsonish(t) && DELIMS.some((d) => { const r = records(t, d); return pairOK(r.counts) && r.tight; }),
+  V4: (t: string) => !jsonish(t) && DELIMS.some((d) => allOK(records(t, d).counts)),
+  V5: (t: string) => !jsonish(t) && DELIMS.some((d) => { const r = records(t, d); return allOK(r.counts) && r.tight; }),
+};
+
+// §4: the audit window boundary. target=200 warns, target=201 does not.
+const file = (target: number, total: number) =>
+  "id,n\n" + Array.from({ length: total }, (_, i) => `${i + 1 === target ? "00123" : "1"},${i + 1}`).join("\n");
+for (const target of [5, 200, 201, 250, 999]) {
+  const r = csvToJson(file(target, 1000), { header: true, delimiter: ",", dynamicTyping: true });
+  if (r.ok) console.log(target, JSON.parse(r.value.json)[target - 1].id, r.value.warnings.length);
+}
+```
+
+**B. The differential that proves V5 is the shipped rule.** Narrowing the detector's `availableIds`
+to `csv-json` removes any effect the three-result cap or a competing confidence could have on the
+comparison:
+
+```ts
+const shipped = (t: string) => detectInput(t, new Set(["csv-json"])).some((d) => d.toolId === "csv-json");
+for (const [label, text] of CORPUS) if (V.V5(text) !== shipped(text)) console.log("MISMATCH", label);
+```
+
+**C. The corpus**, so §3 and §5 are reproducible exactly rather than descriptively. `CSV` are forms
+the tool should detect; `OTHER` are pastes it should stay quiet about.
+
+```ts
+const CSV: [string, string][] = [
+  ["plain 3-record", "id,name\n1,Ana\n2,Bo"],
+  ["spaced after comma, numeric", "name, age\nAna, 30\nBo, 40"],
+  ["spaced after comma, text only", "full name, city\nAna Rivera, Madrid\nBo Lee, Lisbon"],
+  ["quoted comma", 'a,b\n"Rivera, Ana",x\nBo,y'],
+  ["tab separated", "id\tname\n1\tAna\n2\tBo"],
+  ["semicolon", "id;note;n\n1;a;2\n2;b;3"],
+  ["pipe", "a|b\n1|2\n3|4"],
+  ["CRLF", "id,name\r\n1,Ana\r\n2,Bo\r\n"],
+  ["blank lines between", "id,name\n\n1,Ana\n\n2,Bo\n"],
+  ["only two records", "a,b\n1,2"],
+  ["timestamp column", "timestamp,status,msg\n2026-10-25 10:00:00,OK,up\n2026-10-25 10:00:01,WARN,slow"],
+  ["emails + booleans", "name,email,signed_up\nAna,a@b.com,true\nBo,b@c.com,false"],
+  ["headerless numbers", "1,2\n3,4\n5,6"],
+  ["quoted newline inside", 'id,note\n1,"a\nb"\n2,x'],
+  ["long file 9 records", "x,y\n" + "1,2\n".repeat(8)],
+  ["spaces around padding", " a , b \n 1 , 2 \n 3 , 4 "],
+  ["footer note after the data", "id,name\n1,Ana\n2,Bo\n3,Kim\n(exported 2026-10-25 by reports@corp)"],
+  ["one ragged row, unquoted comma", "id,note,score\n1,hello,9\n2,why, the, heck,7\n3,ok,5"],
+  ["spaced, with a footer note", "name, age\nAna, 30\nBo, 40\n(continued on the next page)"],
+  ["blank cells between commas", "a,b,c\n,,\n1,,3"],
+];
+const OTHER: [string, string][] = [
+  ["two prose lines", "Hello, world\nGoodbye, friend"],
+  ["three prose lines, one comma each", "Hello, world\nGoodbye, friend\nSee you, later"],
+  ["comma-separated log", "2026-10-25T10:00:01 ERROR payment failed, retrying\n2026-10-25T10:00:02 INFO health check ok\n2026-10-25T10:00:03 ERROR db timeout, giving up"],
+  ["pretty JSON object", '{\n "a": 1,\n "b": 2,\n "c": 3\n}'],
+  ["minified JSON array", '[{"a":1,"b":2},{"a":3,"b":4},{"a":5,"b":6}]'],
+  ["YAML manifest", "# manifest\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\n"],
+  ["cURL command", "curl https://api.example.com/me -H 'authorization: Bearer x' -d '{\"a\": 1}'"],
+  ["cron expression", "*/15 9-17 * * 1-5"],
+  ["markdown table", "| a | b |\n|---|---|\n| 1 | 2 |"],
+  ["SQL fragment", "SELECT a, b, c\nFROM t, u\nWHERE x, y"],
+  ["plain sentence paragraph", "The report was filed late, and nobody noticed\nfor three weeks.\nPlease fix the pipeline."],
+  ["INI-ish config", "[section]\nkey = value, other\nx = y"],
+  ["single line CSV", "a,b,c"],
+  ["empty-ish paste", "\n\n  \n"],
+];
+```
+
+Every number in §3's table and the shipped-rule differential in §9-B were produced from exactly these
+34 samples, and the Finding D chip readings come from the same `detectInput` call with no id filter —
+i.e. the input the home page itself uses. A browser check of the visible chips on `/` confirmed the
+same two samples render "Looks like a cron expression → Open in Cron Explainer".

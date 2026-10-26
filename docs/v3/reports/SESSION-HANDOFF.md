@@ -270,3 +270,18 @@ into measurements, in [CP2-EVIDENCE-PACKET.md](CP2-EVIDENCE-PACKET.md):
 Batch A started, then a `REVIEW_LOG.md` entry, `ACCEPTED`/`REJECTED` on rows 17–22 and any
 `R-CP2-<k>` repair rows. The owner's protocol step is to tell the reviewer: *"CP2 ready, pushed to
 v3."* — `origin/v3` is already at `20c7e83` with `verify` green.
+
+
+**Same evening, after the packet was first written — self-correction and one new finding.** The
+packet's own reproduction code was run end to end, which found that its §3 table carried a stale V3
+row (3 → 4 CSV forms missed, written from the corpus before the footer-line and ragged-row samples
+were added) and that the appendix needed the corpus itself, not just a description of it. Both are
+fixed in the packet, with the provenance stated rather than quietly edited. Running that code also
+surfaced **Finding D**, which none of the three review questions anticipated: a spaced CSV
+(`name, age / Ana, 30 / Bo, 40`) and a plain comma list (`milk, bread, eggs, …`) are claimed by
+**T-205's cron rule** at confidence 0.7, and the home page really renders
+*"Looks like a cron expression → Open in Cron Explainer"* for them. The mechanism is that the shape
+rule accepts any 5-6 whitespace tokens, the field alphabet allows letters plus commas, and a *trailing*
+comma counts as structure. Real schedules stay safe under a proposed discriminator (internal commas,
+digits, `*`) — measured, not yet coded. Still frozen: no source change, no severity assigned, no
+repair started. Packet §5 and §9.
