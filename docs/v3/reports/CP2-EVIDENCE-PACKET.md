@@ -12,17 +12,42 @@ no repair was made to any flagged item, and no post-CP2 task was started.
 
 ## 1. State the reviewer should confirm before running anything
 
+**Read this as a predicate, not a snapshot.** Only documentation commits land on `v3` while the freeze
+holds, so the tip moves each time this packet is corrected and any hash written here is stale by the
+next one. Run these two commands against whatever the tip is; their output *is* the state:
+
+```
+git rev-parse HEAD                              # current tip (a docs commit)
+git diff --name-only 20c7e83..HEAD -- src test scripts package.json package-lock.json .github
+```
+
+The second command must print **nothing**. If it does, source under review has moved and this packet's
+measurements no longer describe the branch. The subtree comparison below is the same claim in a single
+value per path, so it does not depend on reading a diff:
+
+| Path | Tree/blob at `20c7e83` | At tip `7bd3f5d` | Equal |
+|---|---|---|---|
+| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | same | ✓ |
+| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | same | ✓ |
+| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | same | ✓ |
+| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | same | ✓ |
+| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | same | ✓ |
+| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | same | ✓ |
+
+Re-derive with `git rev-parse <rev>:<path>`. The `.github` row matters on its own: **the CI workflow
+file itself is byte-identical across every run in Finding E's tally**, so the pass/fail spread cannot
+be explained by an edit to the pipeline.
+
 | Fact | Value | How to re-check |
 |---|---|---|
 | Branch | `v3` (no other branch was touched) | `git rev-parse --abbrev-ref HEAD` |
-| Local HEAD | `20c7e83b4afe2ba461f7eb55ecf4f99e2b8ef982` | `git rev-parse HEAD` |
-| `origin/v3` | `20c7e83…` — identical, `0 0` ahead/behind | `git fetch origin v3 && git rev-list --left-right --count origin/v3...HEAD` |
+| **Source under review** | `20c7e83` (code) / `c01ffac` (the tree the gates were run on) | `git log --oneline -8` |
+| Tip at the time of writing | `7bd3f5d` — documentation only | `git rev-parse HEAD` |
 | Worktree | clean, no untracked files | `git status --porcelain` (empty) |
-| CI on `20c7e83` (code under review) | `verify` **completed / success** | `curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/20c7e83/check-runs` — note `gh` is **not** installed on this machine |
+| CI, seven completed runs of that identical source | `20c7e83` ✓, `ed06cf4` ✓, `614f5f4` ✗, `9e7409f` ✗, `e082dba` ✓, `b857694` ✓, `7bd3f5d` ✓ → **5 pass / 2 fail** | `curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/<sha>/check-runs` — `gh` is **not** installed on this machine |
 | CI on `8925903` (T-205) | `verify` **completed / success** | same endpoint, that hash |
-| CI verdicts on the docs-only commits after the code | `ed06cf4` pass, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` pass — all four commit byte-identical `src/`, `test/`, `scripts/` and lockfiles. This is **Finding E** (§6), not a regression introduced by documentation. | annotations on both failures: `src/core/diff/diff.test.ts:82` and `:152` |
-| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — 19 commits. Per task: T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; T-203 `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`; then docs-only `582b759`, `20c7e83`, `ed06cf4`, `614f5f4`, `9e7409f`, `e082dba`. **Everything after `c01ffac` touches `docs/` alone.** | `git log --oneline 07da1fe^..HEAD` |
-| Secret scan | run locally over 45 commits at `20c7e83` with gitleaks 8.28.0 → **no leaks found**. CI repeats the same pinned version over full history as its **first** step, before any install, so every run that reached `npm run test:unit` (including both failing runs) cleared the scan; `e082dba` is green end to end. | see caveat in §7 — and note §6's corpus contains a fake `authorization: Bearer x` header, which CI's scan has now seen |
+| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — 19 commits. Per task: T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; T-203 `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`; then docs-only `582b759`, `20c7e83`, `ed06cf4`, `614f5f4`, `9e7409f`, `e082dba`, `b857694`, `7bd3f5d`. **Everything after `c01ffac` touches `docs/` alone.** | `git log --oneline 07da1fe^..HEAD` |
+| Secret scan | run locally over 45 commits at `20c7e83` with gitleaks 8.28.0 → **no leaks found**. CI repeats the same pinned version over full history as its **first** step, before any install, so every run that reached `npm run test:unit` (including both failures) cleared the scan; `7bd3f5d` is green end to end. | see caveat in §7 — and note §10's corpus contains a fake `authorization: Bearer x` header, which CI's scan has now seen |
 
 The counts below were produced by the implementation agent and must be **re-derived** by the
 reviewer, not accepted: `npm ci`, `npm run check`, `npm run test:e2e`. Reported values for
@@ -183,6 +208,42 @@ Severity is the reviewer's call. My reading, offered without claiming the decisi
 because the paste box is the home page's flagship entry point and this sends a CSV author to a cron
 tool; **S3-leaning** because navigation still reaches the right tool and no data is affected.
 
+### 5.1 The blast radius is wider than the two examples, and the cause is the specification
+
+Measured with 15 realistic non-cron pastes and 24 valid cron forms, against the shipped rule and two
+candidate discriminators (corpus and predicates in Appendix D):
+
+| | shipped rule | P1 — a trailing comma no longer counts as structure | P2 — every token must parse as a cron field |
+|---|---|---|---|
+| Non-cron pastes wrongly claimed | **6 of 15** | 4 of 15 | **0 of 15** |
+| Valid cron forms rejected | 0 of 24 | 0 of 24 | 0 of 24 |
+| *New* false positives introduced | — | none | **two classes** |
+
+The six the shipped rule claims: `name, age / Ana, 30 / Bo, 40`; `milk, bread, eggs, butter, flour,
+sugar`; `alpha, beta, gamma, delta, epsilon, zeta`; `5 apples, 6 pears, 7 plums`;
+`123 Main St, Springfield, IL`; and `Lorem ipsum dolor sit, amet consectetur`. So Finding D is not two
+unlucky inputs — the rule claims **any 5- or 6-token chunk whose tokens contain only letters, digits and
+commas**.
+
+P1 should be dismissed as a fix: it still claims the spaced CSV, because `30` and `40` are digits and so
+count as structure under that definition anyway.
+
+P2 removes all six and keeps all 24 valid forms, but it is not free — measured against adversarial input
+it newly claims `the and for not you` (five space-separated three-letter tokens pass
+an alphabet that allows `[A-Za-z]{3}`) and `MON TUE WED THU FRI` / `JAN FEB MAR APR MAY`. It does
+correctly reject `0x1 0x2 0x3 0x4 0x5`, which the shipped rule claims today. A defensible repair is
+therefore **position-aware** validation — names only in the month and day-of-week fields, from the real
+name sets; `L`, `W`, `#` and `?` only where they are legal — rather than a flatter token test.
+
+**The decision the reviewer owns, beyond which fix to choose:** the loose grammar is *specified*, not
+invented in implementation. [P2_tools.md:265](../tasks/P2_tools.md) gives the cron detector as
+`^(@(yearly|annually|monthly|weekly|daily|midnight|hourly)|(\S+\s+){4,5}\S+)$` "where every field
+matches `^[\d*/,\-?LW#A-Za-z]+$`" — which is precisely what ships. The only departure from that clause is
+my own documented D3 tightening in T-205's report (require one structured field), and even that accepts
+a trailing comma as the required structure. So any repair is either an amendment to the specification or
+a further implementer-side tightening, and specification text is the reviewer's authority. That is why
+this is recorded as evidence and left unimplemented.
+
 ## 6. New finding E — the CI gate is not deterministic for Batch A
 
 Discovered by checking CI after a documentation-only push, and the most consequential thing in this
@@ -190,10 +251,9 @@ packet. Nothing was changed.
 
 | Evidence | Value |
 |---|---|
-| Six CI runs, one identical source | `20c7e83` **pass**, `ed06cf4` **pass**, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` **pass**, `b857694` **pass** — all six commit the same `src/`, `test/`, `scripts/`, `package.json` and `package-lock.json` bytes (`git diff 20c7e83..e082dba` over those paths is empty; every commit after `20c7e83` touches `docs/` only). **4 pass / 2 fail on unchanged code.** |
-| What failed, both times | the same two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
-| What that means | the gate is nondeterministic rather than persistently broken: the branch tip is green right now, and a green verdict on `v3` therefore carries no information about the tree. The reviewer's own run may pass or fail twice in a row for the same reason. |
-| What failed | exactly two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
+| Seven CI runs, one identical source | `20c7e83` **pass**, `ed06cf4` **pass**, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` **pass**, `b857694` **pass**, `7bd3f5d` **pass** — **5 pass / 2 fail**. Each carries identical `src`, `test`, `scripts`, `package.json`, `package-lock.json` **and `.github`** tree hashes (§1), so neither the code nor the pipeline differed between them |
+| What failed, both times | the same two assertions and nothing else: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false`; each failure's annotations list those two lines plus the job's exit-code-1 note — no other test, gate or scan failed on either run |
+| What that means | the gate is nondeterministic rather than persistently broken: the tip is green today, so a green `verify` on `v3` currently carries no information about the tree, and a red one carries no information about the change that preceded it |
 | What they assert | `expect(r.ok).toBe(false)` — i.e. the test **requires the diff library's own timeout to fire** |
 | Why that flips | `src/core/diff/diff.ts:41` sets `TIMEOUT_MS = 2000`. Measured locally over three repeats, the two tests run in **2020–2027 ms** — about 1% above the budget. On GitHub's runner the same 4,000-line / 40,000-character comparison completed *inside* 2000 ms, so `r.ok` was `true` and the assertion failed |
 
@@ -226,9 +286,11 @@ gate that fails intermittently on untouched code arguably belongs there because 
 of every later green run; S2 is the defensible alternative.
 
 **On chasing the tally.** Every correction to this packet pushes again and therefore adds another
-sample, so the count could be grown indefinitely. It stops here: two failures on identical code are
-already sufficient to prove the gate is nondeterministic, and a longer streak of passes would create a
-false impression of reliability rather than remove it.
+sample, so the count could be grown indefinitely. It stops with this revision: the next push will make
+the eighth run of the same source, its verdict will be recorded nowhere important, and neither a
+longer green streak nor another red line changes the finding. **Two failures on identical code are the
+evidence**; the ratio is not. §1's predicate commands are what the reviewer should use, not any hash
+written here.
 
 ## 7. Caveats about the evidence in this packet
 
@@ -372,3 +434,44 @@ Every number in §3's table and the shipped-rule differential in §10-B were pro
 34 samples, and the Finding D chip readings come from the same `detectInput` call with no id filter —
 i.e. the input the home page itself uses. A browser check of the visible chips on `/` confirmed the
 same two samples render "Looks like a cron expression → Open in Cron Explainer".
+
+**D. The Finding D corpus and the two candidate predicates** (`shipped` is
+`detectInput(t, new Set(["cron"]))`).
+
+```ts
+const CRON_MUST_KEEP = ["* * * * *", "*/15 9-17 * * 1-5", "0 0 * * 0", "30 0 * * * *", "0 0 1 1 SUN",
+  "0 0,30 * * * *", "*/5 * * * MON-FRI", "0 12 * * SUN,SAT", "0 */2 * * *", "0 0 L * *", "0 0 15 * ?",
+  "0 9 * * 1#3", "15 10 * * 6L", "0 0 1 JAN *", "*/10 8-20/2 * * *", "05 02 * * *", "0 0 25 12 MON",
+  "@daily", "@hourly", "@weekly", "@monthly", "@yearly", "@annually", "@midnight"];
+
+const NOT_CRON = ["name, age\nAna, 30\nBo, 40", "full name, city\nAna Rivera, Madrid\nBo Lee, Lisbon",
+  "milk, bread, eggs, butter, flour, sugar", "alpha, beta, gamma, delta, epsilon, zeta", "id,name\n1,Ana\n2,Bo",
+  "2026-10-25, Ana, 30\n2026-10-26, Bo, 40\n2026-10-27, Kim, 12", "5 apples, 6 pears, 7 plums",
+  "123 Main St, Springfield, IL", "GET /api/v1/users 200 15ms", "The quick brown fox jumps",
+  "Lorem ipsum dolor sit, amet consectetur", "a b c d e", "key = value, other\nx = y\nz = w",
+  "Host: api.example.com\nPort: 443\nMethod: GET", "48.8584, 2.2945\n51.5074, -0.1278\n40.7128, -74.0060"];
+
+// P1: shipped grammar, but a trailing comma alone is not "structure".
+const p1 = (t) => {
+  const x = t.trim();
+  if (/^@(yearly|annually|monthly|weekly|daily|midnight|hourly)$/.test(x.toLowerCase())) return true;
+  const f = x.split(/\s+/);
+  if (f.length < 5 || f.length > 6) return false;
+  return f.every((v) => /^[\d*/,\-?LW#A-Za-z]+$/.test(v))
+      && f.some((v) => /[\d*/\-?LW#]|,[^\s]/.test(v.replace(/,$/, "")));
+};
+
+// P2: every token must parse as a cron field value.
+const fieldToken = (tok) => tok === "*" || tok === "?" || tok.split(",").every((p) =>
+  /^(L|W|LW)$/.test(p) ||
+  /^(\*|\?|[0-9]{1,2}|[A-Za-z]{3})(-[0-9]{1,2}|-[A-Za-z]{3})?(\/[0-9]{1,2})?([LW]|#\d)?$/.test(p));
+const p2 = (t) => {
+  const x = t.trim();
+  if (/^@(yearly|annually|monthly|weekly|daily|midnight|hourly)$/.test(x.toLowerCase())) return true;
+  const f = x.split(/\s+/);
+  return (f.length >= 5 && f.length <= 6) && f.every(fieldToken);
+};
+```
+
+Results, as printed by running this: `shipped` 6 of 15 non-cron claimed and 0 of 24 valid rejected;
+`P1` 4 and 0; `P2` 0 and 0, with the two new false-positive classes listed in §5.1.
