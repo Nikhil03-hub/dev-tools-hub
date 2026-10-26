@@ -46,23 +46,26 @@ git diff --name-only 20c7e83..HEAD -- src test scripts package.json package-lock
 ```
 
 Must print **nothing**. `20c7e83` is the code commit (its own tested tree is `c01ffac`, the last commit
-before it that touched anything but `docs/`); everything after it in §1.4's list is documentation only.
+before it that touched anything but `docs/`); everything after it is documentation only, and §1.4 gives
+the command that enumerates them.
 If that command lists a file, this packet's measurements no longer describe the branch and the review
 scope has to be re-established rather than reused. The same claim as one value per path:
 
-| Path | Tree/blob at `20c7e83` | Equal at your `HEAD` | Re-derive both sides |
+| Path | Tree/blob at `20c7e83` | Compare against | Equal when you run it |
 |---|---|---|---|
-| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | ✓ at `841f6ae` | `git rev-parse 20c7e83:src` and `git rev-parse HEAD:src` |
-| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | ✓ | same, for `test` |
-| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | ✓ | same, for `scripts` |
-| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | ✓ | same, for `package.json` |
-| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | ✓ | same, for `package-lock.json` |
-| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | ✓ | same, for `.github` |
+| `src` | `7edee32bbb6c78437f24c0ed97c3661bcc4c8d48` | `git rev-parse HEAD:src` | if it prints the same value |
+| `test` | `6dcc532e4c4db5c0e8959d29ef5709fea0bd755a` | `git rev-parse HEAD:test` | same |
+| `scripts` | `32758358a4a991a5f7ac24ad8931e25b2710005c` | `git rev-parse HEAD:scripts` | same |
+| `package.json` | `16bc937074c84b1f2260ff7d060706674e9f5186` | `git rev-parse HEAD:package.json` | same |
+| `package-lock.json` | `0d009827b0ffda7e04037d6808016b831c47f9de` | `git rev-parse HEAD:package-lock.json` | same |
+| `.github` | `0e37357510e31d0682f3f3d1dcaaa90d0a744e81` | `git rev-parse HEAD:.github` | same |
 
-The left column is a fixed baseline and stays valid; the middle column is a claim about **this file's
-own commit**, named once so it cannot be mistaken for a current tip — re-derive it on the commit you are
-reviewing. The hashes were last compared at `841f6ae`, which is a documentation commit and therefore one
-more sample rather than a new state.
+The left column is a permanent, content-addressed baseline. The middle column is a question to run, not
+a number to copy — this table deliberately holds no claim about which commit is current, because the
+previous version of it named one (`841f6ae`) and that tip had already moved twice by the time the claim
+was read. Both sides were recomputed here and matched for all six paths; they were also compared by a
+second, independent method — `git diff 20c7e83 HEAD -- <those paths>` produces no output at all — so the
+equality does not rest on hash formatting alone.
 
 The `.github` row carries its own weight: **the CI workflow file is byte-identical across every run
 discussed in Finding E**, so the pass/fail spread cannot be explained by an edit to the pipeline — only
@@ -93,7 +96,7 @@ For a specific commit, the annotations name the failing lines:
 | CI on `8925903` (T-205) | `verify` completed / success | the §1.3 loop extended backwards, or the per-commit endpoint |
 | Secret scan at `20c7e83` | gitleaks 8.28.0 over 45 commits → no leaks found | re-run per §7's caveat about which binary |
 | CI's own scan on later commits | it is the **first** step, before any install, so any run that reached `npm run test:unit` cleared it — including both failures; the failing runs' annotations list only the two diff assertions | §1.3 plus the annotations endpoint |
-| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — 19 commits. Per task: T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; T-203 `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`; the rest are `docs/`-only | `git log --name-only --oneline c01ffac..HEAD` shows every later commit touching only `docs/` |
+| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`. Everything after `c01ffac` touches `docs/` only — enumerate them rather than trusting a list here: `git log --oneline --name-only c01ffac..HEAD` | `git log --oneline 07da1fe^..HEAD` |
 | Note §10's corpus | it contains a fake `authorization: Bearer x` header, and CI's scan has cleared it on every run since | same as above |
 
 ## 2. Reviewer question 1 — formula protection: accurate, but is it *seen*?
