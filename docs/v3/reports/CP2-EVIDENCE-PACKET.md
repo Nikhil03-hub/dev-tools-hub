@@ -20,9 +20,9 @@ no repair was made to any flagged item, and no post-CP2 task was started.
 | Worktree | clean, no untracked files | `git status --porcelain` (empty) |
 | CI on `20c7e83` (code under review) | `verify` **completed / success** | `curl -s -H "Accept: application/vnd.github+json" https://api.github.com/repos/Nikhil03-hub/dev-tools-hub/commits/20c7e83/check-runs` — note `gh` is **not** installed on this machine |
 | CI on `8925903` (T-205) | `verify` **completed / success** | same endpoint, that hash |
-| CI on `ed06cf4` / `614f5f4` (docs-only commits over identical code) | `ed06cf4` **success**; `614f5f4` **failure** — see **Finding E**, two T-202 timing tests. `git diff 20c7e83..614f5f4 -- src test scripts package.json package-lock.json` is empty, so the same source passed and failed CI on consecutive runs. | annotations: `src/core/diff/diff.test.ts:82` and `:152`, both "expected true to be false" |
-| Diff range for Batch A | `git log --oneline 582b759..v3` = the 6 commits of T-205/T-206 plus earlier; T-201…T-206 core/UI pairs are `07da1fe`, `792d1f8`, `cf954cb`/`76e32e7`, `facf7ac`/`7cd9896`, `e86d6b7`/`8925903`, `8f44b96`/`303775f`/`c01ffac` | `git log --oneline -20` |
-| Secret scan | `gitleaks 8.28.0 git . --config .gitleaks.toml --redact --no-banner` → **no leaks found**, 45 commits | see caveat in §4 |
+| CI verdicts on the docs-only commits after the code | `ed06cf4` pass, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` pass — all four commit byte-identical `src/`, `test/`, `scripts/` and lockfiles. This is **Finding E** (§6), not a regression introduced by documentation. | annotations on both failures: `src/core/diff/diff.test.ts:82` and `:152` |
+| Batch A commit range | `git log --oneline 07da1fe^..HEAD` — 19 commits. Per task: T-201 `07da1fe`+`faaa2e3`; T-202 `792d1f8`; T-203 `cf954cb`+`abc07d8`+`76e32e7`; T-204 `facf7ac`+`7cd9896`; T-205 `e86d6b7`+`8925903`; T-206 `8f44b96`+`303775f`+`c01ffac`; then docs-only `582b759`, `20c7e83`, `ed06cf4`, `614f5f4`, `9e7409f`, `e082dba`. **Everything after `c01ffac` touches `docs/` alone.** | `git log --oneline 07da1fe^..HEAD` |
+| Secret scan | run locally over 45 commits at `20c7e83` with gitleaks 8.28.0 → **no leaks found**. CI repeats the same pinned version over full history as its **first** step, before any install, so every run that reached `npm run test:unit` (including both failing runs) cleared the scan; `e082dba` is green end to end. | see caveat in §7 — and note §6's corpus contains a fake `authorization: Bearer x` header, which CI's scan has now seen |
 
 The counts below were produced by the implementation agent and must be **re-derived** by the
 reviewer, not accepted: `npm ci`, `npm run check`, `npm run test:e2e`. Reported values for
@@ -190,9 +190,9 @@ packet. Nothing was changed.
 
 | Evidence | Value |
 |---|---|
-| Same source, opposite verdicts | CI `verify` **success** on `20c7e83` and `ed06cf4`, **failure** on `614f5f4` and `9e7409f` — four runs of source that is byte-identical in `src/`, `test/`, `scripts/`, `package.json` and `package-lock.json` across all four (`git diff 20c7e83..HEAD` over those paths is empty; the commits touch `docs/` only) |
-| What failed | the same two assertions both times: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
-| Current state of the branch tip | **red**. Two consecutive failures means the practical situation is not "occasionally flaky" but "CI is failing on `v3` right now", and the reviewer should expect the same on their own push |
+| Five CI runs, one identical source | `20c7e83` **pass**, `ed06cf4` **pass**, `614f5f4` **fail**, `9e7409f` **fail**, `e082dba` **pass** — all five commit the same `src/`, `test/`, `scripts/`, `package.json` and `package-lock.json` bytes (`git diff 20c7e83..e082dba` over those paths is empty; every commit after `20c7e83` touches `docs/` only). **3 pass / 2 fail on unchanged code.** |
+| What failed, both times | the same two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
+| What that means | the gate is nondeterministic rather than persistently broken: the branch tip is green right now, and a green verdict on `v3` therefore carries no information about the tree. The reviewer's own run may pass or fail twice in a row for the same reason. |
 | What failed | exactly two assertions: `src/core/diff/diff.test.ts:82` and `:152`, both `expected true to be false` |
 | What they assert | `expect(r.ok).toBe(false)` — i.e. the test **requires the diff library's own timeout to fire** |
 | Why that flips | `src/core/diff/diff.ts:41` sets `TIMEOUT_MS = 2000`. Measured locally over three repeats, the two tests run in **2020–2027 ms** — about 1% above the budget. On GitHub's runner the same 4,000-line / 40,000-character comparison completed *inside* 2000 ms, so `r.ok` was `true` and the assertion failed |
@@ -201,14 +201,12 @@ So the assertion encodes "this machine is slow enough to give up", which is a pr
 rather than of the product. The neighbouring `expect(elapsed).toBeLessThan(6000)` in the same test is
 fine; it is the demanded-timeout assertion that is environment-dependent.
 
-Two things the reviewer should hold separately. First, **the product is not what is failing**: every
-gate — `npm run check`, the 595-check e2e suite, gitleaks — passes on this machine for this exact
-tree, and the failing assertion is about how long a machine takes, not about diff correctness. Second,
-CI's own annotations on both failed runs carry a runner-image note ("`ubuntu-latest` will migrate to
-Ubuntu 26 beginning October 19, 2026"), and today is October 26 — so a change in runner hardware is a
-plausible reason the branch went from passing to failing across commits that touch no source. I have
-not proven that; it is offered as the most likely mechanism, and either way the test is wrong to
-depend on it.
+Two things to hold separately. First, **the product is not what is failing**: every gate —
+`npm run check`, the 595-check e2e suite, gitleaks — passes on this machine for this exact tree, and
+the failing assertion is about how long a machine takes, not about diff correctness. Second, the pass
+pattern is worth reading as load-dependent rather than hardware-dependent: the image-migration note
+appears in CI's annotations on every run, passing or failing, so it is a permanent notice rather than
+the event that changed the outcome.
 
 Why it matters at a checkpoint: the protocol's regression rules give the gate its authority, and this
 one can fail on a tree that nobody changed. The reviewer's own `npm run check` may or may not
